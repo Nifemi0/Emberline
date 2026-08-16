@@ -11,6 +11,7 @@ import { attestcoinConfig, isAttestcoinReady, verifyUscReview } from './services
 const root = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(root, 'app');
 const port = Number(process.env.PORT || 8899);
+const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const db = openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'data/emberline.db'));
 const MAX_BODY = 32 * 1024;
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
@@ -189,5 +190,5 @@ const server = http.createServer(async (req, res) => {
     const status = error.status || (String(error.message).includes('UNIQUE constraint') ? 409 : 500); fail(res, status, error.code || (status === 500 ? 'internal_error' : 'request_failed'), status === 500 ? 'The request could not be completed.' : error.message); if (status === 500) console.error(error);
   }
 });
-server.listen(port, '127.0.0.1', () => console.log(`Emberline: http://127.0.0.1:${port}`));
+server.listen(port, host, () => console.log(`Emberline: http://${host}:${port}`));
 process.on('SIGTERM', () => { db.close(); server.close(); });
