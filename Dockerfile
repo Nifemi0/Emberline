@@ -5,7 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY app ./app
 COPY services ./services
-COPY server.mjs README.md ./
+COPY live-attestation.json server.mjs README.md ./
 
 RUN mkdir -p /data && chown -R node:node /app /data
 USER node
