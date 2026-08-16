@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+artifacts
+cache
+data
+lib
+node_modules
+out
+test
+*.db
+*.db-shm
+*.db-wal

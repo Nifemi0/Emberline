@@ -1,0 +1,15 @@
+data/
+node_modules/
+.env
+.env.*
+!.env.example
+.foundry/
+.cache/
+cache/
+lib/
+out/
+artifacts/
+.secrets/
+.DS_Store
+*.db-shm
+*.db-wal
