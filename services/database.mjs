@@ -138,8 +138,6 @@ export async function initialize(store) {
       await store.run('INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) VALUES (?,?,?,?,?,?)', [milestone.id, 0, '0x8b2f8ac6a51b90c24ca481f479d801824de0e523f7414e325a2a9ca541e7c41d', 'Seeded installation evidence package', 'implementer-atlas', now()]);
     });
   }
-  if (!(await store.get('SELECT 1 FROM projects WHERE id=?', ['DEMO-001']))) await resetDemoProject(store);
-
   const evidenceBackfill = store.kind === 'postgresql'
     ? `INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) SELECT m.id,COALESCE(m.revision,0),m.evidence_commitment,'Imported evidence package',p.implementer_actor_id,COALESCE(m.released_at,?) FROM milestones m JOIN projects p ON p.id=m.project_id WHERE m.evidence_commitment IS NOT NULL ON CONFLICT(milestone_id,revision) DO NOTHING`
     : `INSERT OR IGNORE INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) SELECT m.id,COALESCE(m.revision,0),m.evidence_commitment,'Imported evidence package',p.implementer_actor_id,COALESCE(m.released_at,datetime('now')) FROM milestones m JOIN projects p ON p.id=m.project_id WHERE m.evidence_commitment IS NOT NULL`;
@@ -150,26 +148,49 @@ export async function initialize(store) {
   await store.exec(reviewBackfill);
 }
 
-export async function resetDemoProject(store) {
+export async function deleteDemoProject(store, projectId) {
+  if (!/^DEMO-[A-Za-z0-9-]+$/.test(projectId)) throw new Error('Invalid demo project id.');
   await store.transaction(async () => {
-    const milestoneIds = (await store.all('SELECT id FROM milestones WHERE project_id=?', ['DEMO-001'])).map((row) => row.id);
+    const milestoneIds = (await store.all('SELECT id FROM milestones WHERE project_id=?', [projectId])).map((row) => row.id);
     for (const milestoneId of milestoneIds) {
       await store.run('DELETE FROM milestone_reviews WHERE milestone_id=?', [milestoneId]);
       await store.run('DELETE FROM reviews WHERE milestone_id=?', [milestoneId]);
       await store.run('DELETE FROM evidence_revisions WHERE milestone_id=?', [milestoneId]);
     }
-    await store.run("DELETE FROM idempotency WHERE actor_id LIKE 'demo-%'");
-    await store.run('DELETE FROM events WHERE project_id=?', ['DEMO-001']);
-    await store.run('DELETE FROM project_reviewers WHERE project_id=?', ['DEMO-001']);
-    await store.run('DELETE FROM milestones WHERE project_id=?', ['DEMO-001']);
-    await store.run('DELETE FROM projects WHERE id=?', ['DEMO-001']);
-    const createdAt = now();
-    await store.run(`INSERT INTO projects (id,name,category,summary,implementer_actor_id,status,target_amount,funded_amount,released_amount,impact_target,impact_unit,confirmed_impact,created_at) VALUES (?,?,?,?,?,'in_review',?,?,?,?,?,?,?)`, ['DEMO-001', 'Community Water Network · Demo', 'Interactive sandbox', 'Experience the complete Emberline flow: commit evidence, collect two independent approvals, and release the next verified tranche.', 'demo-implementer', 12000, 12000, 3000, 300, 'residents', 80, createdAt]);
-    const milestones = [[1, 'Engineering & permits', 3000, 2, 'released', createdAt], [2, 'Network installation', 6000, 2, 'pending', null], [3, 'Commissioning audit', 3000, 2, 'pending', null]];
-    for (const [sequence, title, amount, quorum, state, releasedAt] of milestones) await store.run('INSERT INTO milestones (project_id,sequence,title,amount,quorum,state,released_at) VALUES (?,?,?,?,?,?,?)', ['DEMO-001', sequence, title, amount, quorum, state, releasedAt]);
-    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', ['DEMO-001', 'demo-reviewer-one', 'technical']);
-    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', ['DEMO-001', 'demo-reviewer-two', 'stakeholder']);
+    await store.run('DELETE FROM events WHERE project_id=?', [projectId]);
+    await store.run('DELETE FROM project_reviewers WHERE project_id=?', [projectId]);
+    await store.run('DELETE FROM milestones WHERE project_id=?', [projectId]);
+    await store.run('DELETE FROM projects WHERE id=?', [projectId]);
   });
+}
+
+export async function createDemoProject(store, projectId = 'DEMO-001') {
+  if (!/^DEMO-[A-Za-z0-9-]+$/.test(projectId)) throw new Error('Invalid demo project id.');
+  if (await store.get('SELECT 1 FROM projects WHERE id=?', [projectId])) return projectId;
+  await store.transaction(async () => {
+    const createdAt = now();
+    const seedCommitment = `0x${createHash('sha256').update(`${projectId}:engineering-permits`).digest('hex')}`;
+    await store.run(`INSERT INTO projects (id,name,category,summary,implementer_actor_id,status,target_amount,funded_amount,released_amount,impact_target,impact_unit,confirmed_impact,created_at) VALUES (?,?,?,?,?,'in_review',?,?,?,?,?,?,?)`, [projectId, 'Community Water Network · Demo', 'Guided private sandbox', 'Follow one verified milestone from evidence commitment through independent quorum to capital release.', 'demo-implementer', 9000, 9000, 3000, 300, 'residents', 80, createdAt]);
+    const milestones = [[1, 'Engineering & permits', 3000, 2, 'released', seedCommitment, 2, createdAt], [2, 'Network installation', 6000, 2, 'pending', null, 0, null]];
+    for (const milestone of milestones) await store.run('INSERT INTO milestones (project_id,sequence,title,amount,quorum,state,evidence_commitment,approvals,released_at) VALUES (?,?,?,?,?,?,?,?,?)', [projectId, ...milestone]);
+    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', [projectId, 'demo-reviewer-one', 'technical']);
+    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', [projectId, 'demo-reviewer-two', 'stakeholder']);
+    const first = await store.get('SELECT id FROM milestones WHERE project_id=? AND sequence=1', [projectId]);
+    await store.run('INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) VALUES (?,?,?,?,?,?)', [first.id, 0, seedCommitment, 'Approved engineering and permits package', 'demo-implementer', createdAt]);
+    for (const [actorId, ref] of [['demo-reviewer-one', 'local:seed-technical-approval'], ['demo-reviewer-two', 'local:seed-stakeholder-approval']]) await store.run('INSERT INTO milestone_reviews (milestone_id,revision,actor_id,decision,attestation_ref,source_tx_hash,created_at) VALUES (?,?,?,?,?,?,?)', [first.id, 0, actorId, 'approved', ref, null, createdAt]);
+    await appendEvent(store, { projectId, type: 'project_created', actorId: 'demo-owner', actorName: 'Demo Capital Owner', detail: 'Guided demo workspace created', reference: `demo:${projectId}` });
+    await appendEvent(store, { projectId, type: 'funding_recorded', actorId: 'demo-owner', actorName: 'Demo Capital Owner', detail: '9000 units funded', reference: 'local:demo-capital' });
+    await appendEvent(store, { projectId, milestoneId: first.id, type: 'evidence_submitted', actorId: 'demo-implementer', actorName: 'Demo Builder', detail: 'Approved engineering and permits package · revision 0', reference: seedCommitment });
+    await appendEvent(store, { projectId, milestoneId: first.id, type: 'review_approved', actorId: 'demo-reviewer-one', actorName: 'Demo Reviewer One', detail: 'Milestone approved · revision 0', reference: 'local:seed-technical-approval' });
+    await appendEvent(store, { projectId, milestoneId: first.id, type: 'review_approved', actorId: 'demo-reviewer-two', actorName: 'Demo Reviewer Two', detail: 'Milestone approved · revision 0', reference: 'local:seed-stakeholder-approval' });
+    await appendEvent(store, { projectId, milestoneId: first.id, type: 'milestone_released', actorId: 'demo-owner', actorName: 'Demo Capital Owner', detail: '3000 units released', reference: 'local:seed-release' });
+  });
+  return projectId;
+}
+
+export async function resetDemoProject(store) {
+  if (await store.get('SELECT 1 FROM projects WHERE id=?', ['DEMO-001'])) await deleteDemoProject(store, 'DEMO-001');
+  return createDemoProject(store, 'DEMO-001');
 }
 
 export async function openDatabase(path = process.env.EMBERLINE_DB_PATH || resolve('data/emberline.db')) {
@@ -179,8 +200,10 @@ export async function openDatabase(path = process.env.EMBERLINE_DB_PATH || resol
 }
 
 export async function appendEvent(db, { projectId, milestoneId = null, type, actorId = null, actorName, detail, reference }) {
-  const previous = (await db.get('SELECT event_hash FROM events WHERE project_id=? ORDER BY created_at DESC,id DESC LIMIT 1', [projectId]))?.event_hash || 'GENESIS';
-  const createdAt = now();
+  const previousEvent = await db.get('SELECT event_hash,created_at FROM events WHERE project_id=? ORDER BY created_at DESC,id DESC LIMIT 1', [projectId]);
+  const previous = previousEvent?.event_hash || 'GENESIS';
+  const timestamp = Date.now(); const previousTimestamp = previousEvent ? Date.parse(previousEvent.created_at) : 0;
+  const createdAt = new Date(Math.max(timestamp, previousTimestamp + 1)).toISOString();
   const event = { projectId, milestoneId, type, actorId, actorName, detail, reference, previous, createdAt };
   const digest = eventHash(event);
   await db.run('INSERT INTO events (id,project_id,milestone_id,type,actor_id,actor_name,detail,reference,previous_hash,event_hash,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [randomUUID(), projectId, milestoneId, type, actorId, actorName, detail, reference, previous, digest, createdAt]);

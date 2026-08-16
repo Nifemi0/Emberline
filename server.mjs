@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { extname, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
-import { openDatabase, hashToken, appendEvent, projectView, resetDemoProject } from './services/database.mjs';
+import { openDatabase, hashToken, appendEvent, projectView, createDemoProject, deleteDemoProject } from './services/database.mjs';
 import { attestcoinConfig, isAttestcoinReady, verifyUscReview } from './services/attestcoin.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,6 @@ const db = await openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'da
 const MAX_BODY = 32 * 1024;
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
 const requests = new Map();
-const DEMO_PROJECT_ID = 'DEMO-001';
 const DEMO_SESSION_MS = 60 * 60 * 1000;
 const demoExperienceEnabled = process.env.DEMO_EXPERIENCE_ENABLED !== 'false';
 const demoCodes = new Map([
@@ -26,9 +25,8 @@ const demoCodes = new Map([
   ['EMBER-REVIEW-2', { id: 'demo-reviewer-two', name: 'Demo Reviewer Two', role: 'reviewer' }]
 ]);
 const demoSessions = new Map();
-let demoResetDeadline = Date.now() + DEMO_SESSION_MS;
-let demoResetPromise = null;
-if (demoExperienceEnabled) await resetDemoProject(db);
+const demoJourneys = new Map();
+for (const { id } of await db.all("SELECT id FROM projects WHERE id LIKE 'DEMO-%'")) await deleteDemoProject(db, id);
 
 const send = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(JSON.stringify(data)); };
 const fail = (res, status, error, message, extra = {}) => send(res, status, { error, message, ...extra });
@@ -44,7 +42,7 @@ const authenticate = async (req) => {
   if (!token) return null;
   const tokenDigest = hashToken(token); const demoSession = demoSessions.get(tokenDigest);
   if (demoSession) {
-    if (demoSession.expiresAt > Date.now()) return { ...demoSession.actor, demo: true, projectId: DEMO_PROJECT_ID };
+    if (demoSession.expiresAt > Date.now()) return { ...demoSession.actor, demo: true, projectId: demoSession.projectId, journeyId: demoSession.journeyId };
     demoSessions.delete(tokenDigest);
   }
   return await db.get('SELECT id,name,role FROM actors WHERE token_hash=?', [tokenDigest]) || null;
@@ -76,11 +74,13 @@ const idempotent = async (actor, req, signature, fn) => {
 const isCommitment = (value) => /^0x[0-9a-fA-F]{64}$/.test(value || '');
 const isTxHash = (value) => !value || /^0x[0-9a-fA-F]{64}$/.test(value);
 const isProjectId = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(value);
-const ensureDemoScope = (actor, projectId) => { if (actor?.demo && projectId !== DEMO_PROJECT_ID) throw appError('Demo sessions are restricted to the disposable demo workspace.', 403, 'demo_scope'); };
-const resetDemoIfDue = async () => {
-  if (Date.now() < demoResetDeadline) return;
-  demoResetPromise ||= resetDemoProject(db).finally(() => { demoResetDeadline = Date.now() + DEMO_SESSION_MS; demoResetPromise = null; });
-  await demoResetPromise;
+const ensureDemoScope = (actor, projectId) => { if (actor?.demo && projectId !== actor.projectId) throw appError('Demo sessions are restricted to their private sandbox.', 403, 'demo_scope'); };
+const cleanupExpiredDemos = async () => {
+  const now = Date.now();
+  for (const [journeyId, journey] of demoJourneys) {
+    if (journey.expiresAt <= now) { demoJourneys.delete(journeyId); await deleteDemoProject(db, journey.projectId); }
+  }
+  for (const [digest, session] of demoSessions) if (session.expiresAt <= now) demoSessions.delete(digest);
 };
 const localAttestationsEnabled = process.env.ALLOW_LOCAL_ATTESTATIONS === 'true' || (process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_ATTESTATIONS !== 'false');
 const refreshProjectStatus = async (projectId) => {
@@ -110,17 +110,27 @@ const server = http.createServer(async (req, res) => {
     if (!rateLimit(req, res)) return;
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', demoExperienceEnabled, localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain }); }
-    if (url.pathname === '/api/demo/access' && req.method === 'GET') return send(res, 200, { enabled: demoExperienceEnabled, expiresInMinutes: DEMO_SESSION_MS / 60000, resetAt: new Date(demoResetDeadline).toISOString(), roles: demoExperienceEnabled ? [...demoCodes.entries()].map(([code, actor]) => ({ code, name: actor.name, role: actor.role })) : [] });
+    if (url.pathname === '/api/demo/access' && req.method === 'GET') return send(res, 200, { enabled: demoExperienceEnabled, expiresInMinutes: DEMO_SESSION_MS / 60000, isolatedPerVisitor: true, roles: demoExperienceEnabled ? [...demoCodes.entries()].map(([code, actor]) => ({ code, name: actor.name, role: actor.role })) : [] });
     if (url.pathname === '/api/demo/session' && req.method === 'POST') {
       if (!demoExperienceEnabled) return fail(res, 404, 'demo_disabled', 'Public demo access is disabled.');
       const body = await parseBody(req); const code = String(body.code || '').trim().toUpperCase(); const actor = demoCodes.get(code);
       if (!actor) return fail(res, 401, 'invalid_demo_code', 'That demo code was not recognized.');
-      await resetDemoIfDue(); const token = randomBytes(32).toString('base64url'); const expiresAt = Date.now() + DEMO_SESSION_MS;
-      demoSessions.set(hashToken(token), { actor, expiresAt }); return send(res, 201, { token, expiresAt: new Date(expiresAt).toISOString(), actor: { ...actor, demo: true, projectId: DEMO_PROJECT_ID } });
+      await cleanupExpiredDemos();
+      const requestedJourney = String(body.journeyId || '').trim();
+      let journeyId = /^[A-Za-z0-9-]{16,80}$/.test(requestedJourney) ? requestedJourney : randomUUID();
+      let journey = demoJourneys.get(journeyId);
+      if (!journey) {
+        const projectId = `DEMO-${randomUUID().slice(0, 12).toUpperCase()}`;
+        const expiresAt = Date.now() + DEMO_SESSION_MS;
+        await createDemoProject(db, projectId); journey = { projectId, expiresAt }; demoJourneys.set(journeyId, journey);
+      }
+      const token = randomBytes(32).toString('base64url');
+      demoSessions.set(hashToken(token), { actor, projectId: journey.projectId, journeyId, expiresAt: journey.expiresAt });
+      return send(res, 201, { token, journeyId, expiresAt: new Date(journey.expiresAt).toISOString(), actor: { ...actor, demo: true, projectId: journey.projectId, journeyId } });
     }
     if (url.pathname === '/api/session' && req.method === 'GET') return send(res, 200, { actor: await authenticate(req) });
     if (url.pathname === '/api/actors' && req.method === 'GET') return send(res, 200, { actors: await db.all("SELECT id,name,role FROM actors WHERE id NOT LIKE 'demo-%' ORDER BY role,name") });
-    if (url.pathname === '/api/projects' && req.method === 'GET') { const actor = await authenticate(req); const query = actor?.demo ? 'SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id=?' : 'SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id<>? ORDER BY created_at DESC'; return send(res, 200, { projects: await db.all(query, [DEMO_PROJECT_ID]) }); }
+    if (url.pathname === '/api/projects' && req.method === 'GET') { const actor = await authenticate(req); const query = actor?.demo ? 'SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id=?' : "SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id NOT LIKE 'DEMO-%' ORDER BY created_at DESC"; return send(res, 200, { projects: await db.all(query, actor?.demo ? [actor.projectId] : []) }); }
 
     if (url.pathname === '/api/projects' && req.method === 'POST') {
       const actor = await requireRole(req, res, ['owner']); if (!actor) return; const body = await parseBody(req);
@@ -165,6 +175,8 @@ const server = http.createServer(async (req, res) => {
         const milestone = await projectForMilestone(Number(evidenceRoute[1])); if (!milestone) throw appError('Milestone not found.', 404); if (milestone.implementer_actor_id !== actor.id) throw appError('Only this project implementer may submit evidence.', 403);
         ensureDemoScope(actor, milestone.project_id);
         if (!['pending', 'disputed'].includes(milestone.state)) throw appError('Only pending or disputed milestones accept a new evidence revision.', 409, 'evidence_immutable');
+        const prior = await db.get('SELECT state FROM milestones WHERE project_id=? AND sequence<? ORDER BY sequence DESC LIMIT 1', [milestone.project_id, milestone.sequence]);
+        if (prior && prior.state !== 'released') throw appError('Complete the current milestone before submitting evidence for a later gate.', 409, 'sequence_locked');
         const revision = milestone.state === 'disputed' ? milestone.revision + 1 : milestone.revision;
         await db.run('INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) VALUES (?,?,?,?,?,?)', [milestone.id, revision, body.commitment, body.label.trim(), actor.id, new Date().toISOString()]);
         await db.run("UPDATE milestones SET evidence_commitment=?,revision=?,approvals=0,rejections=0,state='submitted',version=version+1 WHERE id=?", [body.commitment, revision, milestone.id]);
@@ -216,6 +228,7 @@ const server = http.createServer(async (req, res) => {
         if (milestone.funded_amount - milestone.released_amount < milestone.amount) throw appError('Project escrow is underfunded.', 409, 'underfunded');
         await db.run("UPDATE milestones SET state='released',released_at=?,version=version+1 WHERE id=?", [new Date().toISOString(), milestone.id]);
         await db.run('UPDATE projects SET released_amount=released_amount+?,version=version+1 WHERE id=?', [milestone.amount, milestone.project_id]);
+        if (actor.demo && !(await db.get("SELECT 1 FROM milestones WHERE project_id=? AND state<>'released' LIMIT 1", [milestone.project_id]))) await db.run('UPDATE projects SET confirmed_impact=impact_target WHERE id=?', [milestone.project_id]);
         await appendEvent(db, { projectId: milestone.project_id, milestoneId: milestone.id, type: 'milestone_released', actorId: actor.id, actorName: actor.name, detail: `${milestone.amount} units released`, reference: `release:${randomUUID()}` }); await refreshProjectStatus(milestone.project_id); return projectView(db, milestone.project_id);
       })); return send(res, 200, result);
     }

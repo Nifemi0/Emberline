@@ -51,6 +51,7 @@ try {
 
   const invalidEvidence = await post(`/api/milestones/${first}/evidence`, tokens.implementer, { label: 'bad', commitment: 'x' });
   expectStatus(invalidEvidence, 400, 'invalid evidence');
+  expectStatus(await post(`/api/milestones/${second}/evidence`, tokens.implementer, { label: 'Future delivery evidence', commitment: commitment('f1') }), 409, 'future evidence sequence guard');
   expectStatus(await post(`/api/milestones/${first}/evidence`, tokens.implementer, { label: 'Design evidence', commitment: commitment('a1') }), 201, 'evidence submission');
   const unconfiguredUsc = await post(`/api/milestones/${first}/review`, tokens.technical, { decision: 'approved', attestationRef: 'usc:proof-before-config', sourceTxHash: commitment('a2') });
   expectStatus(unconfiguredUsc, 409, 'unconfigured USC proof');
