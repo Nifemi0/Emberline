@@ -28,6 +28,10 @@ try {
   while (Date.now() < deadline) { try { if ((await fetch(`${base}/health`)).ok) break; } catch {} await wait(50); }
   const access = await request('/api/demo/access'); expect(access, 200, 'public code list');
   if (!access.data.enabled || access.data.roles.length !== 4) throw new Error('public demo roles are not published');
+  const workspaceHtml = await (await fetch(`${base}/workspace`)).text();
+  for (const phrase of ['LIVE APPLICATION SANDBOX', 'SESSION-GENERATED INPUT', 'WHAT IS REAL HERE?', 'NO PRODUCTION FUNDS']) if (!workspaceHtml.includes(phrase)) throw new Error(`workspace provenance copy missing: ${phrase}`);
+  const landingHtml = await (await fetch(base)).text();
+  if (!landingHtml.includes('VERIFIABILITY, WITHOUT BLURRING THE LINE')) throw new Error('landing deployment scope disclosure is missing');
   expect(await request('/api/demo/session', { method: 'POST', body: { code: 'WRONG-CODE' } }), 401, 'invalid demo code');
   const rawCodeSession = await request('/api/session', { token: 'EMBER-OWNER' });
   if (rawCodeSession.data.actor !== null) throw new Error('public code authenticated directly as a bearer token');
@@ -57,6 +61,7 @@ try {
   console.log('  published codes exchange for random sessions');
   console.log('  every visitor receives an isolated project');
   console.log('  seeded history and milestone sequence are consistent');
+  console.log('  provenance and deployment-scope language is explicit');
   console.log('  real projects remain inaccessible');
   console.log('  production-safe local demo flow completes');
 } finally {
