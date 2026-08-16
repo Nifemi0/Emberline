@@ -60,11 +60,13 @@ The project makes a deliberately narrow claim: the chain verifies that the confi
 
 ## Submission links
 
-- Repository: TBD
-- Live application: TBD
+- Repository: https://github.com/Nifemi0/Emberline
+- Live application: https://emberline.onrender.com
 - Demo video: TBD
-- Verifier contract: TBD
-- Project escrow contract: TBD
-- Creditcoin explorer transactions: TBD
+- Sepolia source registry: https://sepolia.etherscan.io/address/0x525749ab5390166fCEa076D50d5168d1db476cE7
+- Creditcoin verifier: https://creditcoin-testnet.blockscout.com/address/0x525749ab5390166fCEa076D50d5168d1db476cE7
+- Project escrow: https://creditcoin-testnet.blockscout.com/address/0xB236da47fe9215E18C729050fEd3f4B77FcBBffE
+- Verifier deployment transaction: https://creditcoin-testnet.blockscout.com/tx/0x66e1917d305939d96168b0bde33ac6a1e6cc099b31df3b7c4fcb9516ad4da936
+- Project deployment transaction: https://creditcoin-testnet.blockscout.com/tx/0x2794178c36b43c427f458a08c5ba6df11fc53028a32c9f820d782a24d393c881
 
-These fields require the final repository, host, wallet, and testnet deployment.
+The hosted demo uses Render's free service tier. Its SQLite filesystem is ephemeral, so demo records can reset after a restart or redeploy; the contracts and their on-chain state are unaffected.

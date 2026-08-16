@@ -6,6 +6,17 @@ Emberline is a general milestone-funding and accountability workspace. It can be
 
 The system records a project policy, commits capital, stores evidence commitments, collects independent reviewer attestations, and releases each tranche only when the configured policy is satisfied.
 
+## Live deployment
+
+- Application: https://emberline.onrender.com
+- Repository: https://github.com/Nifemi0/Emberline
+- Sepolia review registry: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
+- Creditcoin Attestcoin verifier: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
+- Creditcoin project escrow: `0xB236da47fe9215E18C729050fEd3f4B77FcBBffE`
+- Project ID: `0x4ef2ce7025b91eb08aa02e50567a6450b755103065f7a11325d9a5fb34f1252e`
+
+The same registry and verifier address is expected: the same deployer used the same nonce on two different chains. Public testnet deployment details and explorer links are in [`SUBMISSION.md`](./SUBMISSION.md).
+
 ## What is real in this MVP
 
 - SQLite persistence, with a stable database path independent of the launch directory
