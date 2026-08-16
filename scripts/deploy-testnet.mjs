@@ -103,6 +103,14 @@ for (const reviewer of [addresses.reviewerTechnical, addresses.reviewerStakehold
   }
 }
 
+const reviewerSepoliaGas = parseEther('0.002');
+for (const reviewer of [addresses.reviewerTechnical, addresses.reviewerStakeholder, addresses.reviewerAuditor]) {
+  if ((await sepoliaProvider.getBalance(reviewer)) < reviewerSepoliaGas) {
+    await (await sepoliaWallet.sendTransaction({ to: reviewer, value: reviewerSepoliaGas })).wait();
+    console.log(`Funded Sepolia reviewer: ${reviewer}`);
+  }
+}
+
 if (creditcoinBalance === 0n) throw new Error('Creditcoin deployer is not funded yet. Sepolia setup is complete; re-run after the CTC faucet request succeeds.');
 
 if (!deployment.attestcoinVerifier) {
