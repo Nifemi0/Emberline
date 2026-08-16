@@ -14,6 +14,21 @@ const request = async (path, options = {}) => {
   const response = await fetch(path, { ...options, headers }); const data = await response.json();
   if (!response.ok) throw new Error(data.message || data.error || 'Request failed'); return data;
 };
+const renderLiveAttestation = async () => {
+  try {
+    const payload = await request('/api/live-attestation'); const attestation = payload.attestation;
+    if (!payload.available || !attestation) return;
+    $('#liveProof').hidden = false;
+    $('#liveProofAmount').textContent = `${attestation.releasedAmount} released`;
+    $('#liveProofProject').textContent = `${attestation.network} · milestone ${attestation.milestoneId} · revision ${attestation.revision}`;
+    const technical = attestation.reviewers?.find((reviewer) => reviewer.role === 'technical');
+    const stakeholder = attestation.reviewers?.find((reviewer) => reviewer.role === 'stakeholder');
+    if (technical) $('#liveTechnicalLink').href = `https://sepolia.etherscan.io/tx/${technical.sourceTxHash}`;
+    if (stakeholder) $('#liveStakeholderLink').href = `https://sepolia.etherscan.io/tx/${stakeholder.sourceTxHash}`;
+    if (technical) $('#liveVerifierLink').href = `https://creditcoin-testnet.blockscout.com/tx/${technical.proofRegistrationTxHash}`;
+    if (attestation.releaseTxHash) $('#liveReleaseLink').href = `https://creditcoin-testnet.blockscout.com/tx/${attestation.releaseTxHash}`;
+  } catch { /* The live sample is optional and should not block the workspace. */ }
+};
 const activeMilestone = () => state.project?.milestones.find((m) => m.state !== 'released');
 const actorCan = (role) => state.actor?.role === role;
 const demoStage = () => {
@@ -194,4 +209,4 @@ $('#guideButton').addEventListener('click', () => openGuide()); $('#onboardingCl
 $('#coachmarkEnd').addEventListener('click', endCoachTour); $('#coachmarkBack').addEventListener('click', () => moveCoach(-1)); $('#coachmarkNext').addEventListener('click', () => moveCoach(1)); window.addEventListener('resize', positionCoachmark);
 document.addEventListener('keydown', (event) => { if ($('#coachmark').classList.contains('open')) { if (event.key === 'Escape') endCoachTour(); if (event.key === 'ArrowLeft') moveCoach(-1); if (event.key === 'ArrowRight') moveCoach(1); return; } if (!$('#onboarding').classList.contains('open')) return; if (event.key === 'Escape') closeGuide(); if (event.key === 'ArrowLeft') moveGuide(-1); if (event.key === 'ArrowRight') moveGuide(1); });
 
-(async () => { try { const health = await request('/health'); const chain = health.attestcoin || {}; $('#chainStatus').textContent = chain.mode === 'unconfigured' ? 'Adapter · configure Attestcoin' : `${chain.network} · ${chain.mode}`; $('#persistenceStatus').textContent = health.persistence === 'postgresql' ? 'POSTGRESQL DATA' : 'LOCAL SQLITE DATA'; if (!health.demoCredentials) $('#demoCredentials').hidden = true; if (!health.demoExperienceEnabled) $('#publicDemo').hidden = true; await loadSession(); await loadProjects(state.actor?.demo ? state.actor.projectId : undefined); } catch (error) { showToast(error.message, true); } })();
+(async () => { try { const health = await request('/health'); const chain = health.attestcoin || {}; $('#chainStatus').textContent = chain.mode === 'unconfigured' ? 'Adapter · configure Attestcoin' : `${chain.network} · ${chain.mode}`; $('#persistenceStatus').textContent = health.persistence === 'postgresql' ? 'POSTGRESQL DATA' : 'LOCAL SQLITE DATA'; if (!health.demoCredentials) $('#demoCredentials').hidden = true; if (!health.demoExperienceEnabled) $('#publicDemo').hidden = true; await renderLiveAttestation(); await loadSession(); await loadProjects(state.actor?.demo ? state.actor.projectId : undefined); } catch (error) { showToast(error.message, true); } })();

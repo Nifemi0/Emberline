@@ -10,6 +10,8 @@ import { attestcoinConfig, isAttestcoinReady, verifyUscReview } from './services
 
 const root = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(root, 'app');
+let liveAttestation = null;
+try { liveAttestation = JSON.parse(await readFile(resolve(root, 'live-attestation.json'), 'utf8')); } catch { /* The live sample is optional for local development. */ }
 const port = Number(process.env.PORT || 8899);
 const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const db = await openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'data/emberline.db'));
@@ -110,6 +112,7 @@ const server = http.createServer(async (req, res) => {
     if (!rateLimit(req, res)) return;
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', demoExperienceEnabled, localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain }); }
+    if (url.pathname === '/api/live-attestation' && req.method === 'GET') return send(res, 200, { available: Boolean(liveAttestation), attestation: liveAttestation });
     if (url.pathname === '/api/demo/access' && req.method === 'GET') return send(res, 200, { enabled: demoExperienceEnabled, expiresInMinutes: DEMO_SESSION_MS / 60000, isolatedPerVisitor: true, roles: demoExperienceEnabled ? [...demoCodes.entries()].map(([code, actor]) => ({ code, name: actor.name, role: actor.role })) : [] });
     if (url.pathname === '/api/demo/session' && req.method === 'POST') {
       if (!demoExperienceEnabled) return fail(res, 404, 'demo_disabled', 'Public demo access is disabled.');
