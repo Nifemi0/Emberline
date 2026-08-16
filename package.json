@@ -6,14 +6,19 @@
     "dev": "node server.mjs",
     "test:contracts": "forge test",
     "test:e2e": "node scripts/verify-e2e.mjs",
+    "test:postgres": "node scripts/verify-postgres-adapter.mjs",
     "test:guards": "node scripts/verify-production-guards.mjs",
     "test:attestcoin": "node scripts/verify-attestcoin-adapter.mjs",
     "check": "node --check server.mjs && node --check services/database.mjs && node --check services/attestcoin.mjs && node --check app/app.js",
-    "test": "npm run check && npm run test:e2e && npm run test:guards && npm run test:attestcoin"
+    "test": "npm run check && npm run test:postgres && npm run test:e2e && npm run test:guards && npm run test:attestcoin"
   },
   "dependencies": {
     "@gluwa/usc-contracts": "^0.1.2",
     "@gluwa/usc-sdk": "^0.18.0",
-    "ethers": "^6.17.0"
+    "ethers": "^6.17.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.14"
   }
 }

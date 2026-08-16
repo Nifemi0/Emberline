@@ -19,7 +19,7 @@ The same registry and verifier address is expected: the same deployer used the s
 
 ## What is real in this MVP
 
-- SQLite persistence, with a stable database path independent of the launch directory
+- PostgreSQL production persistence selected by `DATABASE_URL`, with SQLite as the zero-config local fallback
 - Bearer-token actor authorization derived server-side
 - Owner, implementer, and reviewer permissions enforced in the API
 - Private browser-side evidence hashing with immutable commitment revisions and complete history
@@ -45,7 +45,7 @@ Open `http://127.0.0.1:8899` for the public product guide. The operational appli
 
 For container and Creditcoin deployment, follow [`DEPLOYMENT.md`](./DEPLOYMENT.md). Submission assets are in [`ARCHITECTURE.md`](./ARCHITECTURE.md), [`SUBMISSION.md`](./SUBMISSION.md), and [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md).
 
-Local demo tokens are shown in the actor connection dialog. Set `EMBERLINE_*_TOKEN` environment variables before launch for non-demo credentials. Production refuses to start unless every actor token is configured with at least 24 characters, and configured tokens rotate existing database credentials. Set `EMBERLINE_DB_PATH` to choose a persistent database file.
+Local demo tokens are shown in the actor connection dialog. Set `EMBERLINE_*_TOKEN` environment variables before launch for non-demo credentials. Production refuses to start unless every actor token is configured with at least 24 characters, and configured tokens rotate existing database credentials. Set `DATABASE_URL` for PostgreSQL in production. When it is absent, Emberline uses SQLite at `EMBERLINE_DB_PATH` (default `./data/emberline.db`). Set `PGSSL=true` when the database provider requires TLS.
 
 Attestcoin configuration is optional for local work. Current official testnet defaults are Creditcoin chain ID `102031`, RPC `https://rpc.cc3-testnet.creditcoin.network`, Ethereum Sepolia source-chain key `1`, Proof Builder `https://proof-gen-api.cc3-testnet.creditcoin.network/`, and BlockProver `0x0000000000000000000000000000000000000FD2`. Set the reviewer wallet mappings, `ATTESTCOIN_MODE=usc`, `ATTESTCOIN_SOURCE_REGISTRY`, and the deployed `ATTESTCOIN_USC_CONTRACT` to enable live proofs. Invalid, unavailable, or mismatched proofs block the review. Local attestations are enabled by default only outside production and can be controlled with `ALLOW_LOCAL_ATTESTATIONS`.
 

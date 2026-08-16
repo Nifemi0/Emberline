@@ -94,20 +94,22 @@ The app's live review response includes the canonical `proofId` and destination-
 
 ## 7. Deploy the web application
 
-SQLite needs persistent storage. Railway is the simplest fit for this container: mount a volume at `/app/data` and set `RAILWAY_RUN_UID=0` if the volume is not writable by the image's non-root user. Render persistent disks require a paid service.
+Set `DATABASE_URL` to a PostgreSQL connection string for durable production storage. Emberline creates and seeds its schema automatically on first boot. Set `PGSSL=true` when the provider requires TLS and optionally tune `PGPOOL_MAX` (default `10`). Without `DATABASE_URL`, the app falls back to SQLite at `EMBERLINE_DB_PATH`; that mode requires a persistent volume in production.
+
+Render's free PostgreSQL database is useful for a temporary demo but expires after 30 days, is limited to 1 GB, and has no backups. Use a paid or otherwise durable PostgreSQL service for a real launch. If SQLite is used on Railway, mount a volume at `/app/data` and set `RAILWAY_RUN_UID=0` if needed for write access.
 
 ```bash
 docker compose up --build -d
 curl http://127.0.0.1:8899/health
 ```
 
-The health response is launch-ready only when `demoCredentials` is `false`, `localAttestationsEnabled` is `false`, and `attestcoin.integrationReady` is `true`. Use HTTPS and back up the volume.
+The health response reports `persistence` as `postgresql` or `sqlite`. It is launch-ready only when `demoCredentials` is `false`, `localAttestationsEnabled` is `false`, `attestcoin.integrationReady` is `true`, and production data is on a durable, backed-up store. Use HTTPS.
 
 ## Remaining owner-only launch inputs
 
 - Sepolia and Creditcoin deployer wallets and test funds
 - three reviewer wallet addresses
-- public Railway project/domain and persistent volume
+- durable PostgreSQL database (or a public Railway project/domain and persistent volume for SQLite)
 - repository URL, demo video URL, and pitch-deck/whitepaper PDF URL
 - DoraHacks team and submission-account access
 
