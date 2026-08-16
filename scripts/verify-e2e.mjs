@@ -37,6 +37,10 @@ try {
   await waitForServer();
   const health = await request('/health'); expectStatus(health, 200, 'health');
   if (health.data.attestcoin?.nativeVerifierPrecompile.toLowerCase() !== '0x0000000000000000000000000000000000000fd2' || health.data.attestcoin?.proofBuilderConfigured !== true || health.data.attestcoin?.integrationReady !== false) throw new Error('Attestcoin adapter status is incorrect');
+  const landingResponse = await fetch(`${base}/`); const landingHtml = await landingResponse.text();
+  if (!landingResponse.ok || !landingHtml.includes('Capital controlled by') || !landingHtml.includes('href="/workspace"')) throw new Error('Public landing route is incorrect');
+  const workspaceResponse = await fetch(`${base}/workspace`); const workspaceHtml = await workspaceResponse.text();
+  if (!workspaceResponse.ok || !workspaceHtml.includes('Milestone ledger') || !workspaceHtml.includes('/app.js')) throw new Error('Workspace route is incorrect');
   expectStatus(await request('/api/projects'), 200, 'public project list');
   const unauthenticated = await post('/api/projects', '', { name: 'Nope', category: 'Test', summary: 'Should fail', targetAmount: 1, milestones: [{ title: 'One', amount: 1, quorum: 1 }] });
   expectStatus(unauthenticated, 401, 'owner authorization');
@@ -72,6 +76,7 @@ try {
   const tamperDb = new DatabaseSync(dbPath); tamperDb.prepare('UPDATE events SET detail=? WHERE project_id=? AND id=(SELECT id FROM events WHERE project_id=? ORDER BY created_at LIMIT 1)').run('tampered event', id, id); tamperDb.close();
   const tamperedAudit = await request(`/api/projects/${id}/audit`); if (tamperedAudit.data.valid) throw new Error('audit chain did not detect event tampering');
   console.log('Emberline E2E: passed');
+  console.log('  landing + workspace routes: verified');
   console.log('  auth + path validation: enforced');
   console.log('  evidence: immutable revisions');
   console.log('  dispute: funds locked');

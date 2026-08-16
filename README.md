@@ -41,7 +41,7 @@ The chain adapter is intentionally explicit: `local:` references work in the loc
 node server.mjs
 ```
 
-Open `http://127.0.0.1:8899`.
+Open `http://127.0.0.1:8899` for the public product guide. The operational application is at `http://127.0.0.1:8899/workspace`.
 
 For container and Creditcoin deployment, follow [`DEPLOYMENT.md`](./DEPLOYMENT.md). Submission assets are in [`ARCHITECTURE.md`](./ARCHITECTURE.md), [`SUBMISSION.md`](./SUBMISSION.md), and [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md).
 

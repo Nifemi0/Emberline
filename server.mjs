@@ -182,7 +182,7 @@ const server = http.createServer(async (req, res) => {
       })); return send(res, 200, result);
     }
     if (url.pathname.startsWith('/api/')) return fail(res, 404, 'not_found', 'API route not found.');
-    const requested = url.pathname === '/' ? '/index.html' : url.pathname; const file = resolve(appRoot, `.${requested}`);
+    const requested = url.pathname === '/' ? '/landing.html' : ['/workspace', '/workspace/'].includes(url.pathname) ? '/index.html' : url.pathname; const file = resolve(appRoot, `.${requested}`);
     if (!(file === appRoot || file.startsWith(`${appRoot}${sep}`)) || !existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'content-type': mime[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'" });
     res.end(await readFile(file));
