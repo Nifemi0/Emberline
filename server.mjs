@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID, createHash } from 'node:crypto';
-import { openDatabase, hashToken, appendEvent, projectView } from './services/database.mjs';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { openDatabase, hashToken, appendEvent, projectView, resetDemoProject } from './services/database.mjs';
 import { attestcoinConfig, isAttestcoinReady, verifyUscReview } from './services/attestcoin.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -16,6 +16,19 @@ const db = await openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'da
 const MAX_BODY = 32 * 1024;
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
 const requests = new Map();
+const DEMO_PROJECT_ID = 'DEMO-001';
+const DEMO_SESSION_MS = 60 * 60 * 1000;
+const demoExperienceEnabled = process.env.DEMO_EXPERIENCE_ENABLED !== 'false';
+const demoCodes = new Map([
+  ['EMBER-OWNER', { id: 'demo-owner', name: 'Demo Capital Owner', role: 'owner' }],
+  ['EMBER-BUILDER', { id: 'demo-implementer', name: 'Demo Builder', role: 'implementer' }],
+  ['EMBER-REVIEW-1', { id: 'demo-reviewer-one', name: 'Demo Reviewer One', role: 'reviewer' }],
+  ['EMBER-REVIEW-2', { id: 'demo-reviewer-two', name: 'Demo Reviewer Two', role: 'reviewer' }]
+]);
+const demoSessions = new Map();
+let demoResetDeadline = Date.now() + DEMO_SESSION_MS;
+let demoResetPromise = null;
+if (demoExperienceEnabled) await resetDemoProject(db);
 
 const send = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(JSON.stringify(data)); };
 const fail = (res, status, error, message, extra = {}) => send(res, status, { error, message, ...extra });
@@ -28,7 +41,13 @@ const parseBody = async (req) => {
 };
 const authenticate = async (req) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
-  return token ? await db.get('SELECT id,name,role FROM actors WHERE token_hash=?', [hashToken(token)]) || null : null;
+  if (!token) return null;
+  const tokenDigest = hashToken(token); const demoSession = demoSessions.get(tokenDigest);
+  if (demoSession) {
+    if (demoSession.expiresAt > Date.now()) return { ...demoSession.actor, demo: true, projectId: DEMO_PROJECT_ID };
+    demoSessions.delete(tokenDigest);
+  }
+  return await db.get('SELECT id,name,role FROM actors WHERE token_hash=?', [tokenDigest]) || null;
 };
 const requireRole = async (req, res, roles) => {
   const actor = await authenticate(req);
@@ -57,6 +76,12 @@ const idempotent = async (actor, req, signature, fn) => {
 const isCommitment = (value) => /^0x[0-9a-fA-F]{64}$/.test(value || '');
 const isTxHash = (value) => !value || /^0x[0-9a-fA-F]{64}$/.test(value);
 const isProjectId = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(value);
+const ensureDemoScope = (actor, projectId) => { if (actor?.demo && projectId !== DEMO_PROJECT_ID) throw appError('Demo sessions are restricted to the disposable demo workspace.', 403, 'demo_scope'); };
+const resetDemoIfDue = async () => {
+  if (Date.now() < demoResetDeadline) return;
+  demoResetPromise ||= resetDemoProject(db).finally(() => { demoResetDeadline = Date.now() + DEMO_SESSION_MS; demoResetPromise = null; });
+  await demoResetPromise;
+};
 const localAttestationsEnabled = process.env.ALLOW_LOCAL_ATTESTATIONS === 'true' || (process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_ATTESTATIONS !== 'false');
 const refreshProjectStatus = async (projectId) => {
   const project = await db.get('SELECT funded_amount,target_amount FROM projects WHERE id=?', [projectId]);
@@ -84,18 +109,27 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!rateLimit(req, res)) return;
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain }); }
+    if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', demoExperienceEnabled, localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain }); }
+    if (url.pathname === '/api/demo/access' && req.method === 'GET') return send(res, 200, { enabled: demoExperienceEnabled, expiresInMinutes: DEMO_SESSION_MS / 60000, resetAt: new Date(demoResetDeadline).toISOString(), roles: demoExperienceEnabled ? [...demoCodes.entries()].map(([code, actor]) => ({ code, name: actor.name, role: actor.role })) : [] });
+    if (url.pathname === '/api/demo/session' && req.method === 'POST') {
+      if (!demoExperienceEnabled) return fail(res, 404, 'demo_disabled', 'Public demo access is disabled.');
+      const body = await parseBody(req); const code = String(body.code || '').trim().toUpperCase(); const actor = demoCodes.get(code);
+      if (!actor) return fail(res, 401, 'invalid_demo_code', 'That demo code was not recognized.');
+      await resetDemoIfDue(); const token = randomBytes(32).toString('base64url'); const expiresAt = Date.now() + DEMO_SESSION_MS;
+      demoSessions.set(hashToken(token), { actor, expiresAt }); return send(res, 201, { token, expiresAt: new Date(expiresAt).toISOString(), actor: { ...actor, demo: true, projectId: DEMO_PROJECT_ID } });
+    }
     if (url.pathname === '/api/session' && req.method === 'GET') return send(res, 200, { actor: await authenticate(req) });
-    if (url.pathname === '/api/actors' && req.method === 'GET') return send(res, 200, { actors: await db.all('SELECT id,name,role FROM actors ORDER BY role,name') });
-    if (url.pathname === '/api/projects' && req.method === 'GET') return send(res, 200, { projects: await db.all('SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects ORDER BY created_at DESC') });
+    if (url.pathname === '/api/actors' && req.method === 'GET') return send(res, 200, { actors: await db.all("SELECT id,name,role FROM actors WHERE id NOT LIKE 'demo-%' ORDER BY role,name") });
+    if (url.pathname === '/api/projects' && req.method === 'GET') { const actor = await authenticate(req); const query = actor?.demo ? 'SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id=?' : 'SELECT id,name,category,status,target_amount,funded_amount,released_amount,created_at FROM projects WHERE id<>? ORDER BY created_at DESC'; return send(res, 200, { projects: await db.all(query, [DEMO_PROJECT_ID]) }); }
 
     if (url.pathname === '/api/projects' && req.method === 'POST') {
       const actor = await requireRole(req, res, ['owner']); if (!actor) return; const body = await parseBody(req);
+      if (actor.demo) return fail(res, 403, 'demo_scope', 'Demo owners use the prepared sandbox project and cannot create persistent workspaces.');
       if (!body.name || !body.category || !body.summary || !Number.isSafeInteger(body.targetAmount) || body.targetAmount <= 0 || !Array.isArray(body.milestones) || !body.milestones.length) return fail(res, 400, 'invalid_project', 'Name, category, summary, positive target, and milestones are required.');
       const milestones = body.milestones.map((m) => ({ title: String(m.title || '').trim(), amount: Number(m.amount), quorum: Number(m.quorum || 2) }));
       if (milestones.some((m) => !m.title || !Number.isSafeInteger(m.amount) || m.amount <= 0 || !Number.isSafeInteger(m.quorum) || m.quorum < 1 || m.quorum > 3)) return fail(res, 400, 'invalid_milestones', 'Each milestone needs a title, positive amount, and quorum between 1 and 3.');
       if (milestones.reduce((sum, m) => sum + m.amount, 0) !== body.targetAmount) return fail(res, 400, 'milestone_total_mismatch', 'Milestone amounts must equal the project target.');
-      const reviewerIds = body.reviewerActorIds || (await db.all("SELECT id FROM actors WHERE role='reviewer'")).map((row) => row.id);
+      const reviewerIds = body.reviewerActorIds || (await db.all("SELECT id FROM actors WHERE role='reviewer' AND id NOT LIKE 'demo-%'")).map((row) => row.id);
       const reviewerChecks = Array.isArray(reviewerIds) ? await Promise.all(reviewerIds.map((id) => db.get("SELECT 1 FROM actors WHERE id=? AND role='reviewer'", [id]))) : [];
       if (!Array.isArray(reviewerIds) || new Set(reviewerIds).size !== reviewerIds.length || reviewerChecks.some((row) => !row) || reviewerIds.length < Math.max(...milestones.map((m) => m.quorum))) return fail(res, 400, 'invalid_review_policy', 'Assign enough unique reviewer actors to satisfy the largest milestone quorum.');
       const result = await db.transaction(() => idempotent(actor, req, `${req.method} ${url.pathname} ${JSON.stringify(body)}`, async () => {
@@ -108,12 +142,13 @@ const server = http.createServer(async (req, res) => {
       })); return send(res, 201, result);
     }
     const projectRoute = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
-    if (projectRoute && req.method === 'GET') { if (!isProjectId(projectRoute[1])) return fail(res, 400, 'invalid_project_id', 'Invalid project id.'); const project = await projectView(db, projectRoute[1]); return project ? send(res, 200, project) : fail(res, 404, 'not_found', 'Project not found.'); }
+    if (projectRoute && req.method === 'GET') { if (!isProjectId(projectRoute[1])) return fail(res, 400, 'invalid_project_id', 'Invalid project id.'); const actor = await authenticate(req); ensureDemoScope(actor, projectRoute[1]); const project = await projectView(db, projectRoute[1]); return project ? send(res, 200, project) : fail(res, 404, 'not_found', 'Project not found.'); }
     const auditRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/audit$/);
-    if (auditRoute && req.method === 'GET') { const project = await projectView(db, auditRoute[1]); return project ? send(res, 200, project.audit) : fail(res, 404, 'not_found', 'Project not found.'); }
+    if (auditRoute && req.method === 'GET') { const actor = await authenticate(req); ensureDemoScope(actor, auditRoute[1]); const project = await projectView(db, auditRoute[1]); return project ? send(res, 200, project.audit) : fail(res, 404, 'not_found', 'Project not found.'); }
     const fundRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/fund$/);
     if (fundRoute && req.method === 'POST') {
       const actor = await requireRole(req, res, ['owner']); if (!actor) return; const body = await parseBody(req); const amount = Number(body.amount);
+      ensureDemoScope(actor, fundRoute[1]);
       if (!Number.isSafeInteger(amount) || amount <= 0 || !isTxHash(body.sourceTxHash)) return fail(res, 400, 'invalid_funding', 'A positive integer amount and optional transaction hash are required.');
       const result = await db.transaction(() => idempotent(actor, req, `${req.method} ${url.pathname} ${JSON.stringify(body)}`, async () => {
         const project = await db.get('SELECT * FROM projects WHERE id=?', [fundRoute[1]]); if (!project) throw appError('Project not found.', 404);
@@ -128,6 +163,7 @@ const server = http.createServer(async (req, res) => {
       if (!isCommitment(body.commitment) || typeof body.label !== 'string' || body.label.trim().length < 3 || body.label.length > 180) return fail(res, 400, 'invalid_commitment', 'Evidence needs a label and a full 32-byte hex commitment.');
       const result = await db.transaction(() => idempotent(actor, req, `${req.method} ${url.pathname} ${JSON.stringify(body)}`, async () => {
         const milestone = await projectForMilestone(Number(evidenceRoute[1])); if (!milestone) throw appError('Milestone not found.', 404); if (milestone.implementer_actor_id !== actor.id) throw appError('Only this project implementer may submit evidence.', 403);
+        ensureDemoScope(actor, milestone.project_id);
         if (!['pending', 'disputed'].includes(milestone.state)) throw appError('Only pending or disputed milestones accept a new evidence revision.', 409, 'evidence_immutable');
         const revision = milestone.state === 'disputed' ? milestone.revision + 1 : milestone.revision;
         await db.run('INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) VALUES (?,?,?,?,?,?)', [milestone.id, revision, body.commitment, body.label.trim(), actor.id, new Date().toISOString()]);
@@ -141,7 +177,7 @@ const server = http.createServer(async (req, res) => {
       if (!['approved', 'rejected'].includes(body.decision) || typeof body.attestationRef !== 'string' || body.attestationRef.length < 6 || body.attestationRef.length > 180 || !isTxHash(body.sourceTxHash)) return fail(res, 400, 'invalid_review', 'Decision, attestation reference, and optional source transaction hash are required.');
       if (!/^(local|usc):/i.test(body.attestationRef)) return fail(res, 400, 'invalid_attestation_ref', 'Attestation reference must identify a local or USC proof.');
       const usesUscProof = /^usc:/i.test(body.attestationRef);
-      if (!usesUscProof && !localAttestationsEnabled) return fail(res, 409, 'local_attestations_disabled', 'Local attestations are disabled in this environment. Use a verified USC proof.');
+      if (!usesUscProof && !localAttestationsEnabled && !actor.demo) return fail(res, 409, 'local_attestations_disabled', 'Local attestations are disabled in this environment. Use a verified USC proof.');
       if (usesUscProof && !isAttestcoinReady()) return fail(res, 409, 'attestcoin_unconfigured', 'USC attestations are disabled until the RPC, Proof Builder, source registry, mode, and deployed verifier are configured.');
       if (usesUscProof && !body.sourceTxHash) return fail(res, 400, 'source_tx_required', 'A USC attestation must include the source transaction hash.');
       const milestoneForProof = usesUscProof ? await projectForMilestone(Number(reviewRoute[1])) : null;
@@ -158,6 +194,7 @@ const server = http.createServer(async (req, res) => {
       const canonicalAttestationRef = uscVerification ? `usc:${uscVerification.proofId}` : body.attestationRef.trim();
       const result = await db.transaction(() => idempotent(actor, req, `${req.method} ${url.pathname} ${JSON.stringify(body)}`, async () => {
         const milestone = await projectForMilestone(Number(reviewRoute[1])); if (!milestone) throw appError('Milestone not found.', 404);
+        ensureDemoScope(actor, milestone.project_id);
         if (!(await db.get('SELECT 1 FROM project_reviewers WHERE project_id=? AND actor_id=? AND active=1', [milestone.project_id, actor.id]))) throw appError('Reviewer is not assigned to this project.', 403);
         if (milestone.state !== 'submitted') throw appError('Milestone is not open for review.', 409);
         await db.run('INSERT INTO milestone_reviews (milestone_id,revision,actor_id,decision,attestation_ref,source_tx_hash,created_at) VALUES (?,?,?,?,?,?,?)', [milestone.id, milestone.revision, actor.id, body.decision, canonicalAttestationRef, body.sourceTxHash || null, new Date().toISOString()]);
@@ -172,6 +209,7 @@ const server = http.createServer(async (req, res) => {
       const actor = await requireRole(req, res, ['owner']); if (!actor) return;
       const result = await db.transaction(() => idempotent(actor, req, `${req.method} ${url.pathname}`, async () => {
         const milestone = await projectForMilestone(Number(releaseRoute[1])); if (!milestone) throw appError('Milestone not found.', 404);
+        ensureDemoScope(actor, milestone.project_id);
         const prior = await db.get('SELECT state FROM milestones WHERE project_id=? AND sequence<? ORDER BY sequence DESC LIMIT 1', [milestone.project_id, milestone.sequence]);
         if (prior && prior.state !== 'released') throw appError('Earlier milestones must be released first.', 409, 'sequence_locked');
         if (milestone.state !== 'submitted' || milestone.approvals < milestone.quorum || milestone.rejections > 0) throw appError('Release policy is not satisfied.', 409, 'release_blocked');

@@ -71,6 +71,12 @@ const actorDefinitions = [
   ['reviewer-community', 'Stakeholder Representative', 'reviewer', 'EMBERLINE_STAKEHOLDER_TOKEN', 'stakeholder-demo-token-change-me'],
   ['reviewer-auditor', 'Independent Auditor', 'reviewer', 'EMBERLINE_AUDITOR_TOKEN', 'auditor-demo-token-change-me']
 ];
+const demoActorDefinitions = [
+  ['demo-owner', 'Demo Capital Owner', 'owner'],
+  ['demo-implementer', 'Demo Builder', 'implementer'],
+  ['demo-reviewer-one', 'Demo Reviewer One', 'reviewer'],
+  ['demo-reviewer-two', 'Demo Reviewer Two', 'reviewer']
+];
 
 const sqliteSchema = `
   CREATE TABLE IF NOT EXISTS actors (id TEXT PRIMARY KEY,name TEXT NOT NULL,role TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL);
@@ -116,6 +122,10 @@ export async function initialize(store) {
     await store.run(`INSERT INTO actors (id,name,role,token_hash,created_at) VALUES (?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,role=excluded.role,token_hash=excluded.token_hash`, [id, name, role, hashToken(process.env[key] || demo), now()]);
   }
+  for (const [id, name, role] of demoActorDefinitions) {
+    await store.run(`INSERT INTO actors (id,name,role,token_hash,created_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name,role=excluded.role,token_hash=excluded.token_hash`, [id, name, role, hashToken(`session-only:${id}:${randomUUID()}`), now()]);
+  }
 
   if (!(await store.get('SELECT 1 FROM projects LIMIT 1'))) {
     await store.transaction(async () => {
@@ -128,6 +138,7 @@ export async function initialize(store) {
       await store.run('INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) VALUES (?,?,?,?,?,?)', [milestone.id, 0, '0x8b2f8ac6a51b90c24ca481f479d801824de0e523f7414e325a2a9ca541e7c41d', 'Seeded installation evidence package', 'implementer-atlas', now()]);
     });
   }
+  if (!(await store.get('SELECT 1 FROM projects WHERE id=?', ['DEMO-001']))) await resetDemoProject(store);
 
   const evidenceBackfill = store.kind === 'postgresql'
     ? `INSERT INTO evidence_revisions (milestone_id,revision,commitment,label,submitted_by,created_at) SELECT m.id,COALESCE(m.revision,0),m.evidence_commitment,'Imported evidence package',p.implementer_actor_id,COALESCE(m.released_at,?) FROM milestones m JOIN projects p ON p.id=m.project_id WHERE m.evidence_commitment IS NOT NULL ON CONFLICT(milestone_id,revision) DO NOTHING`
@@ -137,6 +148,28 @@ export async function initialize(store) {
     : `INSERT OR IGNORE INTO milestone_reviews (milestone_id,revision,actor_id,decision,attestation_ref,source_tx_hash,created_at) SELECT r.milestone_id,COALESCE(m.revision,0),r.actor_id,r.decision,r.attestation_ref,r.source_tx_hash,r.created_at FROM reviews r JOIN milestones m ON m.id=r.milestone_id`;
   if (store.kind === 'postgresql') await store.run(evidenceBackfill, [now()]); else await store.exec(evidenceBackfill);
   await store.exec(reviewBackfill);
+}
+
+export async function resetDemoProject(store) {
+  await store.transaction(async () => {
+    const milestoneIds = (await store.all('SELECT id FROM milestones WHERE project_id=?', ['DEMO-001'])).map((row) => row.id);
+    for (const milestoneId of milestoneIds) {
+      await store.run('DELETE FROM milestone_reviews WHERE milestone_id=?', [milestoneId]);
+      await store.run('DELETE FROM reviews WHERE milestone_id=?', [milestoneId]);
+      await store.run('DELETE FROM evidence_revisions WHERE milestone_id=?', [milestoneId]);
+    }
+    await store.run("DELETE FROM idempotency WHERE actor_id LIKE 'demo-%'");
+    await store.run('DELETE FROM events WHERE project_id=?', ['DEMO-001']);
+    await store.run('DELETE FROM project_reviewers WHERE project_id=?', ['DEMO-001']);
+    await store.run('DELETE FROM milestones WHERE project_id=?', ['DEMO-001']);
+    await store.run('DELETE FROM projects WHERE id=?', ['DEMO-001']);
+    const createdAt = now();
+    await store.run(`INSERT INTO projects (id,name,category,summary,implementer_actor_id,status,target_amount,funded_amount,released_amount,impact_target,impact_unit,confirmed_impact,created_at) VALUES (?,?,?,?,?,'in_review',?,?,?,?,?,?,?)`, ['DEMO-001', 'Community Water Network · Demo', 'Interactive sandbox', 'Experience the complete Emberline flow: commit evidence, collect two independent approvals, and release the next verified tranche.', 'demo-implementer', 12000, 12000, 3000, 300, 'residents', 80, createdAt]);
+    const milestones = [[1, 'Engineering & permits', 3000, 2, 'released', createdAt], [2, 'Network installation', 6000, 2, 'pending', null], [3, 'Commissioning audit', 3000, 2, 'pending', null]];
+    for (const [sequence, title, amount, quorum, state, releasedAt] of milestones) await store.run('INSERT INTO milestones (project_id,sequence,title,amount,quorum,state,released_at) VALUES (?,?,?,?,?,?,?)', ['DEMO-001', sequence, title, amount, quorum, state, releasedAt]);
+    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', ['DEMO-001', 'demo-reviewer-one', 'technical']);
+    await store.run('INSERT INTO project_reviewers (project_id,actor_id,reviewer_role) VALUES (?,?,?)', ['DEMO-001', 'demo-reviewer-two', 'stakeholder']);
+  });
 }
 
 export async function openDatabase(path = process.env.EMBERLINE_DB_PATH || resolve('data/emberline.db')) {

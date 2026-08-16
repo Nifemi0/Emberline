@@ -105,6 +105,8 @@ curl http://127.0.0.1:8899/health
 
 The health response reports `persistence` as `postgresql` or `sqlite`. It is launch-ready only when `demoCredentials` is `false`, `localAttestationsEnabled` is `false`, `attestcoin.integrationReady` is `true`, and production data is on a durable, backed-up store. Use HTTPS.
 
+Set `DEMO_EXPERIENCE_ENABLED=true` for the public hackathon sandbox or `false` for a private production deployment. Public demo codes create only short-lived sessions scoped to the resettable `DEMO-001` project; they never reveal or reuse the private `EMBERLINE_*_TOKEN` credentials.
+
 ## Remaining owner-only launch inputs
 
 - Sepolia and Creditcoin deployer wallets and test funds
