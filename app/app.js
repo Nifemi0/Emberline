@@ -23,6 +23,37 @@ const guideRoles = {
   implementer: { label: 'Implementer', icon: '↗', copy: 'Submit private work packages as immutable SHA-256 evidence commitments.', title: 'Turn completed work into verifiable progress.', route: ['Open the active milestone gate', 'Hash evidence privately in your browser', 'Submit a new immutable revision when needed'], target: '#milestones', action: 'Go to milestone ledger' },
   reviewer: { label: 'Reviewer', icon: '✓', copy: 'Independently approve or flag the active evidence revision.', title: 'Make review accountable and independent.', route: ['Inspect the exact evidence revision', 'Approve or flag with an attestation reference', 'Let quorum—or a dispute—control release'], target: '#reviewers', action: 'Go to review network' }
 };
+const coachTours = {
+  visitor: [
+    { target: '#projectList', eyebrow: 'CHOOSE A WORKSPACE', title: 'Click a project to switch context.', copy: 'Every dashboard view, milestone, reviewer, and audit event updates to the selected project.' },
+    { target: '.capital-card', eyebrow: 'READ CAPITAL STATE', title: 'Start with committed versus target.', copy: 'This card shows funding progress and whether the project audit hash chain is currently valid.' },
+    { target: '#milestones', eyebrow: 'INSPECT THE WORK', title: 'Click through the milestone ledger.', copy: 'Each gate shows its amount, evidence commitment, revision number, approvals, and current release state.' },
+    { target: '#reviewers', eyebrow: 'CHECK INDEPENDENCE', title: 'See who must approve.', copy: 'This panel shows quorum progress and makes disputes visible before any capital can move.' },
+    { target: '#activity', eyebrow: 'VERIFY HISTORY', title: 'Finish at the audit trail.', copy: 'Refresh here to inspect the latest hash-chained project actions and their references.' }
+  ],
+  owner: [
+    { target: '#connectButton', eyebrow: 'FIRST: CONNECT', title: 'Connect your owner actor token.', copy: 'Click here and paste the server-issued owner token. The guide itself never grants owner permissions.' },
+    { target: '#newProjectButton', eyebrow: 'CREATE', title: 'Press “New project” to define policy.', copy: 'Set the target, impact goal, milestone amounts, and required approval quorum.' },
+    { target: '#fundButton', eyebrow: 'COMMIT CAPITAL', title: 'Record project funding here.', copy: 'This control is enabled only for a connected owner and records the source transaction when available.' },
+    { target: '#reviewers', eyebrow: 'WATCH THE GATE', title: 'Wait for verified quorum.', copy: 'Approvals apply to one exact evidence revision. A single rejection freezes the active tranche.' },
+    { target: '#releaseButton', eyebrow: 'RELEASE', title: 'Press release only when enabled.', copy: 'The API rechecks role, sequence, funding, quorum, and dispute conditions before recording release.' }
+  ],
+  implementer: [
+    { target: '#connectButton', eyebrow: 'FIRST: CONNECT', title: 'Connect your implementer actor token.', copy: 'The token is checked server-side and must match the implementer assigned to this project.' },
+    { target: '#milestones', eyebrow: 'FIND THE ACTIVE GATE', title: 'Open the milestone ledger.', copy: 'The first pending or disputed milestone is where your next immutable work package belongs.' },
+    { target: '#viewEvidenceButton', eyebrow: 'JUMP TO EVIDENCE', title: 'Press “Inspect evidence trail.”', copy: 'This shortcut takes you directly to commitments, revision history, and submission controls.' },
+    { target: '#milestoneList', eyebrow: 'SUBMIT EVIDENCE', title: 'Press “Submit evidence” on your gate.', copy: 'After connecting the assigned implementer, this action appears on eligible milestones. The private file is hashed locally.' },
+    { target: '#activity', eyebrow: 'CONFIRM THE RECORD', title: 'Check that the revision was recorded.', copy: 'The audit trail preserves the commitment and every replacement revision without uploading the private file.' }
+  ],
+  reviewer: [
+    { target: '#connectButton', eyebrow: 'FIRST: CONNECT', title: 'Connect your reviewer actor token.', copy: 'Only an assigned independent reviewer can act on the active evidence revision.' },
+    { target: '#milestones', eyebrow: 'INSPECT EVIDENCE', title: 'Read the commitment and revision.', copy: 'Confirm you are reviewing the correct work package before making a decision.' },
+    { target: '#reviewers', eyebrow: 'MAKE A DECISION', title: 'Press Approve or Flag beside your name.', copy: 'The action appears only for your connected reviewer session and only once per evidence revision.' },
+    { target: '.policy-note', eyebrow: 'UNDERSTAND THE POLICY', title: 'One rejection freezes release.', copy: 'A replacement evidence revision starts a fresh review cycle while preserving the disputed history.' },
+    { target: '#activity', eyebrow: 'VERIFY ATTESTATION', title: 'Confirm your decision in the audit trail.', copy: 'The event binds the actor, milestone, revision, decision, and proof or attestation reference.' }
+  ]
+};
+let coachStep = 0; let coachTarget = null;
 
 function guideMarkup() {
   const role = guideRoles[state.guideRole];
@@ -37,14 +68,29 @@ function renderGuide() {
   $('#onboardingEyebrow').textContent = ['WELCOME TO EMBERLINE', 'CAPITAL STATES', `${guideRoles[state.guideRole].label.toUpperCase()} ROUTE`, 'IMMUTABLE AUDIT TRAIL', 'WORKSPACE READY'][state.guideStep];
   $('#onboardingContent').innerHTML = guideMarkup();
   $('#onboardingCounter').textContent = `${state.guideStep + 1} / ${guideSteps.length}`;
-  $('#onboardingBack').disabled = state.guideStep === 0; $('#onboardingNext').textContent = state.guideStep === guideSteps.length - 1 ? `${guideRoles[state.guideRole].action} →` : 'Next →';
+  $('#onboardingBack').disabled = state.guideStep === 0; $('#onboardingNext').textContent = state.guideStep === guideSteps.length - 1 ? 'Show me where to click →' : 'Next →';
   $('#guideProgress').innerHTML = guideSteps.map((label, index) => `<div class="guide-step ${index === state.guideStep ? 'active' : index < state.guideStep ? 'complete' : ''}"><i>${index < state.guideStep ? '✓' : `0${index + 1}`}</i><span>${label}</span></div>`).join('');
   document.querySelectorAll('[data-guide-role]').forEach((button) => button.addEventListener('click', () => { state.guideRole = button.dataset.guideRole; localStorage.setItem('emberline_guide_role', state.guideRole); renderGuide(); }));
 }
 function openGuide(step = 0) { state.guideStep = step; renderGuide(); $('#onboarding').classList.add('open'); $('#onboarding').setAttribute('aria-hidden', 'false'); document.body.classList.add('guide-open'); $('#onboardingClose').focus(); }
 function closeGuide(complete = true) { $('#onboarding').classList.remove('open'); $('#onboarding').setAttribute('aria-hidden', 'true'); document.body.classList.remove('guide-open'); if (complete) localStorage.setItem('emberline_onboarding_complete', 'true'); $('#guideButton').focus(); }
-function finishGuide() { const role = guideRoles[state.guideRole]; closeGuide(); const target = $(role.target); target?.scrollIntoView({ behavior: 'smooth', block: 'center' }); target?.classList.add('guide-focus'); setTimeout(() => target?.classList.remove('guide-focus'), 1700); showToast(`${role.label} route ready. Connect an actor only when you need to take action.`); }
+function finishGuide() { closeGuide(); startCoachTour(); }
 function moveGuide(direction) { const next = state.guideStep + direction; if (next < 0) return; if (next >= guideSteps.length) return finishGuide(); state.guideStep = next; renderGuide(); }
+function positionCoachmark() {
+  if (!coachTarget) return; const rect = coachTarget.getBoundingClientRect(); const pad = 7;
+  Object.assign($('#coachmarkRing').style, { left: `${Math.max(5, rect.left - pad)}px`, top: `${Math.max(5, rect.top - pad)}px`, width: `${Math.min(innerWidth - 10, rect.width + pad * 2)}px`, height: `${Math.min(innerHeight - 10, rect.height + pad * 2)}px` });
+  const tip = $('#coachmarkTip'); const tipWidth = Math.min(350, innerWidth - 28); const estimatedHeight = 205; let left = Math.min(innerWidth - tipWidth - 14, Math.max(14, rect.left)); let top = rect.bottom + 17;
+  if (top + estimatedHeight > innerHeight) top = Math.max(14, rect.top - estimatedHeight - 17); if (innerWidth <= 430) { left = 10; top = rect.bottom + 14; if (top + estimatedHeight > innerHeight) top = 10; }
+  Object.assign(tip.style, { left: `${left}px`, top: `${top}px` });
+}
+async function renderCoachStep() {
+  const steps = coachTours[state.guideRole]; const step = steps[coachStep]; coachTarget?.classList.remove('coachmark-target', 'coachmark-pulse'); coachTarget = $(step.target); if (!coachTarget) return endCoachTour();
+  coachTarget.scrollIntoView({ behavior: 'smooth', block: 'center' }); await new Promise((resolve) => setTimeout(resolve, 380)); coachTarget.classList.add('coachmark-target', 'coachmark-pulse');
+  $('#coachmarkEyebrow').textContent = step.eyebrow; $('#coachmarkTitle').textContent = step.title; $('#coachmarkCopy').textContent = step.copy; $('#coachmarkCounter').textContent = `${coachStep + 1} / ${steps.length}`; $('#coachmarkBack').disabled = coachStep === 0; $('#coachmarkNext').textContent = coachStep === steps.length - 1 ? 'Finish ✓' : 'Next →'; positionCoachmark(); $('#coachmarkNext').focus();
+}
+function startCoachTour() { coachStep = 0; $('#coachmark').classList.add('open'); $('#coachmark').setAttribute('aria-hidden', 'false'); document.body.classList.add('coachmark-open'); renderCoachStep(); }
+function endCoachTour() { coachTarget?.classList.remove('coachmark-target', 'coachmark-pulse'); coachTarget = null; $('#coachmark').classList.remove('open'); $('#coachmark').setAttribute('aria-hidden', 'true'); document.body.classList.remove('coachmark-open'); localStorage.setItem('emberline_context_tour_complete', 'true'); $('#guideButton').focus(); showToast('Tour complete. Reopen it anytime from Workspace guide.'); }
+function moveCoach(direction) { const steps = coachTours[state.guideRole]; const next = coachStep + direction; if (next < 0) return; if (next >= steps.length) return endCoachTour(); coachStep = next; renderCoachStep(); }
 
 function renderIdentity() {
   $('#identityName').textContent = state.actor?.name || 'Read-only visitor'; $('#identityRole').textContent = state.actor?.role || 'Connect an actor';
@@ -108,6 +154,7 @@ $('#saveIdentityButton').addEventListener('click', saveIdentity); $('#disconnect
 $('#evidenceFile').addEventListener('change', hashEvidenceFile);
 document.querySelectorAll('[data-token]').forEach((button) => button.addEventListener('click', () => { $('#actorToken').value = button.dataset.token; }));
 $('#guideButton').addEventListener('click', () => openGuide()); $('#onboardingClose').addEventListener('click', () => closeGuide()); $('#onboardingSkip').addEventListener('click', () => closeGuide()); $('#onboardingBack').addEventListener('click', () => moveGuide(-1)); $('#onboardingNext').addEventListener('click', () => moveGuide(1));
-document.addEventListener('keydown', (event) => { if (!$('#onboarding').classList.contains('open')) return; if (event.key === 'Escape') closeGuide(); if (event.key === 'ArrowLeft') moveGuide(-1); if (event.key === 'ArrowRight') moveGuide(1); });
+$('#coachmarkEnd').addEventListener('click', endCoachTour); $('#coachmarkBack').addEventListener('click', () => moveCoach(-1)); $('#coachmarkNext').addEventListener('click', () => moveCoach(1)); window.addEventListener('resize', positionCoachmark);
+document.addEventListener('keydown', (event) => { if ($('#coachmark').classList.contains('open')) { if (event.key === 'Escape') endCoachTour(); if (event.key === 'ArrowLeft') moveCoach(-1); if (event.key === 'ArrowRight') moveCoach(1); return; } if (!$('#onboarding').classList.contains('open')) return; if (event.key === 'Escape') closeGuide(); if (event.key === 'ArrowLeft') moveGuide(-1); if (event.key === 'ArrowRight') moveGuide(1); });
 
 (async () => { try { const health = await request('/health'); const chain = health.attestcoin || {}; $('#chainStatus').textContent = chain.mode === 'unconfigured' ? 'Adapter · configure Attestcoin' : `${chain.network} · ${chain.mode}`; $('#persistenceStatus').textContent = health.persistence === 'postgresql' ? 'POSTGRESQL DATA' : 'LOCAL SQLITE DATA'; if (!health.demoCredentials) $('#demoCredentials').hidden = true; await loadSession(); await loadProjects(); if (localStorage.getItem('emberline_onboarding_complete') !== 'true') openGuide(); } catch (error) { showToast(error.message, true); } })();
