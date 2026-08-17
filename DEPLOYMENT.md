@@ -96,7 +96,7 @@ The app's live review response includes the canonical `proofId` and destination-
 
 Set `DATABASE_URL` to a PostgreSQL connection string for durable production storage. Emberline creates and seeds its schema automatically on first boot. Set `PGSSL=true` when the provider requires TLS and optionally tune `PGPOOL_MAX` (default `10`). Without `DATABASE_URL`, the app falls back to SQLite at `EMBERLINE_DB_PATH`; that mode requires a persistent volume in production.
 
-Render's free PostgreSQL database is useful for a temporary demo but expires after 30 days, is limited to 1 GB, and has no backups. Use a paid or otherwise durable PostgreSQL service for a real launch. If SQLite is used on Railway, mount a volume at `/app/data` and set `RAILWAY_RUN_UID=0` if needed for write access.
+For any real launch, use a durable PostgreSQL service with backups and a documented retention policy. The hosted demo currently uses PostgreSQL; SQLite remains a zero-configuration local fallback and requires a persistent volume when deployed as a single-container service.
 
 ```bash
 docker compose up --build -d
