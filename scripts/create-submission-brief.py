@@ -202,7 +202,7 @@ def build_story():
     story += [Spacer(1, 8), info_table([
         [para("Application", styles["Labelx"]), para(link("emberline.onrender.com", "https://emberline.onrender.com"), styles["Linkx"])],
         [para("Repository", styles["Labelx"]), para(link("github.com/Nifemi0/Emberline", "https://github.com/Nifemi0/Emberline"), styles["Linkx"])],
-        [para("Demo video", styles["Labelx"]), para(link("Emberline motion demo", "https://github.com/Nifemi0/Emberline/raw/refs/heads/main/submission-assets/emberline-buidl-ctc-neural.mp4"), styles["Linkx"])],
+        [para("Demo video", styles["Labelx"]), para(link("Emberline motion demo", "https://youtu.be/4Q4WkAnyvaY"), styles["Linkx"])],
         [para("Technical brief", styles["Labelx"]), para(link("This PDF", "https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf"), styles["Linkx"])],
     ])]
     story += [Spacer(1, 13), para("Official submission checklist", styles["H2x"])]

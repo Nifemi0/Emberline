@@ -10,6 +10,7 @@ The system records a project policy, commits capital, stores evidence commitment
 
 - Application: https://emberline.onrender.com
 - Repository: https://github.com/Nifemi0/Emberline
+- Whitepaper: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf
 - Submission brief: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf
 - Demo video: https://youtu.be/4Q4WkAnyvaY
 - Sepolia review registry: `0x525749ab5390166fCEa076D50d5168d1db476cE7`

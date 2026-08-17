@@ -66,6 +66,7 @@ The project makes a deliberately narrow claim: the chain verifies that the confi
 
 - Repository: https://github.com/Nifemi0/Emberline
 - Live application: https://emberline.onrender.com
+- Whitepaper: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf
 - Submission brief: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf
 - Demo video: https://youtu.be/4Q4WkAnyvaY
 - Sepolia source registry: https://sepolia.etherscan.io/address/0x525749ab5390166fCEa076D50d5168d1db476cE7
@@ -78,4 +79,4 @@ The hosted deployment currently reports PostgreSQL persistence. The application 
 
 ## Submission scope
 
-The current Fall submission page is https://dorahacks.io/hackathon/buidl-ctc-2026-fall. The official Creditcoin page lists September 6, 2026 as the submission date; confirm the platform's displayed cutoff and timezone immediately before submitting. The required public assets are the repository, this technical explanation, the submission brief PDF, the demo video, and the explorer-linked testnet deployment.
+The current Fall submission page is https://dorahacks.io/hackathon/buidl-ctc-2026-fall. The official Creditcoin page lists September 6, 2026 as the submission date; confirm the platform's displayed cutoff and timezone immediately before submitting. The primary public assets are the repository, this whitepaper, the demo video, and the explorer-linked testnet deployment. The submission brief remains available as supplemental context.
