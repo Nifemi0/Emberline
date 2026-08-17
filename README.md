@@ -11,7 +11,7 @@ The system records a project policy, commits capital, stores evidence commitment
 - Application: https://emberline.onrender.com
 - Repository: https://github.com/Nifemi0/Emberline
 - Submission brief: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf
-- Demo video: https://github.com/Nifemi0/Emberline/raw/refs/heads/main/submission-assets/emberline-buidl-ctc-neural.mp4
+- Demo video: https://youtu.be/4Q4WkAnyvaY
 - Sepolia review registry: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
 - Creditcoin Attestcoin verifier: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
 - Creditcoin project escrow: `0xB236da47fe9215E18C729050fEd3f4B77FcBBffE`
