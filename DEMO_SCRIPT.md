@@ -1,6 +1,6 @@
 # Emberline demo script
 
-Target runtime: 2 minutes 30 seconds.
+Target runtime: 80-100 seconds. The current final render is approximately 80 seconds.
 
 ## 0:00–0:20 — The problem
 
@@ -26,7 +26,7 @@ Reconnect as the implementer, submit a corrected evidence revision, and point ou
 
 ## 1:20–1:55 — Attestcoin proof and quorum
 
-Show the Creditcoin explorer transaction that registered each reviewer proof.
+Show the linked live testnet sample and the Creditcoin explorer transactions that registered each reviewer proof. Do not describe the synthetic guided sandbox records as on-chain transactions.
 
 “Attestcoin binds each verified decision to the reviewer, project, milestone, revision, evidence commitment, and approval result. The escrow rejects mismatched, expired, revoked, or replayed proofs.”
 
@@ -50,4 +50,5 @@ Show the audit status and recent events.
 - use non-sensitive synthetic evidence files
 - keep the Creditcoin explorer tabs ready
 - zoom the browser so commitments and quorum are readable
+- distinguish the session-scoped application sandbox from the separate live Attestcoin testnet sample
 - record one clean uninterrupted take, then add captions

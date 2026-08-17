@@ -1,5 +1,9 @@
 # Emberline architecture
 
+## Two clearly separated experiences
+
+The public guided workspace is a session-scoped application sandbox. It creates synthetic application records so a visitor can experience the evidence, review, quorum, and release flow without a wallet or signup; those records have no monetary value and are not public blockchain transactions. The live Attestcoin sample is separate and links the real Sepolia source events, Creditcoin proof registrations, Emberline review calls, and testnet escrow release.
+
 ```mermaid
 flowchart LR
     Owner["Project owner"] -->|"funds and policy"| App["Emberline web app"]

@@ -10,6 +10,8 @@ The system records a project policy, commits capital, stores evidence commitment
 
 - Application: https://emberline.onrender.com
 - Repository: https://github.com/Nifemi0/Emberline
+- Submission brief: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf
+- Demo video: https://github.com/Nifemi0/Emberline/raw/refs/heads/main/submission-assets/emberline-buidl-ctc-neural.mp4
 - Sepolia review registry: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
 - Creditcoin Attestcoin verifier: `0x525749ab5390166fCEa076D50d5168d1db476cE7`
 - Creditcoin project escrow: `0xB236da47fe9215E18C729050fEd3f4B77FcBBffE`
@@ -48,7 +50,7 @@ For container and Creditcoin deployment, follow [`DEPLOYMENT.md`](./DEPLOYMENT.m
 
 Local demo tokens are shown in the actor connection dialog. Set `EMBERLINE_*_TOKEN` environment variables before launch for non-demo credentials. Production refuses to start unless every actor token is configured with at least 24 characters, and configured tokens rotate existing database credentials. Set `DATABASE_URL` for PostgreSQL in production. When it is absent, Emberline uses SQLite at `EMBERLINE_DB_PATH` (default `./data/emberline.db`). Set `PGSSL=true` when the database provider requires TLS.
 
-Public experience mode is enabled unless `DEMO_EXPERIENCE_ENABLED=false`. The published codes are `EMBER-OWNER`, `EMBER-BUILDER`, `EMBER-REVIEW-1`, and `EMBER-REVIEW-2`. Codes are not bearer credentials: the API exchanges them for random one-hour sessions restricted to `DEMO-001`. The demo workspace resets on startup and at most hourly, and demo owners cannot create persistent projects.
+Public experience mode is enabled unless `DEMO_EXPERIENCE_ENABLED=false`. The published codes are `EMBER-OWNER`, `EMBER-BUILDER`, `EMBER-REVIEW-1`, and `EMBER-REVIEW-2`. Codes are not bearer credentials: the API exchanges them for random one-hour sessions restricted to that session's private `DEMO-*` project. The demo workspace is synthetic, resets when the session expires or the service restarts, and demo owners cannot create persistent projects.
 
 Attestcoin configuration is optional for local work. Current official testnet defaults are Creditcoin chain ID `102031`, RPC `https://rpc.cc3-testnet.creditcoin.network`, Ethereum Sepolia source-chain key `1`, Proof Builder `https://proof-gen-api.cc3-testnet.creditcoin.network/`, and BlockProver `0x0000000000000000000000000000000000000FD2`. Set the reviewer wallet mappings, `ATTESTCOIN_MODE=usc`, `ATTESTCOIN_SOURCE_REGISTRY`, and the deployed `ATTESTCOIN_USC_CONTRACT` to enable live proofs. Invalid, unavailable, or mismatched proofs block the review. Local attestations are enabled by default only outside production and can be controlled with `ALLOW_LOCAL_ATTESTATIONS`.
 

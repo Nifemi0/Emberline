@@ -8,6 +8,8 @@ node_modules/
 cache/
 lib/
 out/
+output/
+tmp/
 artifacts/
 .secrets/
 .DS_Store
