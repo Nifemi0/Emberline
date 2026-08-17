@@ -16,7 +16,7 @@ const port = Number(process.env.PORT || 8899);
 const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const db = await openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'data/emberline.db'));
 const MAX_BODY = 32 * 1024;
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.pdf': 'application/pdf' };
 const requests = new Map();
 const DEMO_SESSION_MS = 60 * 60 * 1000;
 const demoExperienceEnabled = process.env.DEMO_EXPERIENCE_ENABLED !== 'false';
@@ -236,7 +236,7 @@ const server = http.createServer(async (req, res) => {
       })); return send(res, 200, result);
     }
     if (url.pathname.startsWith('/api/')) return fail(res, 404, 'not_found', 'API route not found.');
-    const requested = url.pathname === '/' ? '/landing.html' : ['/workspace', '/workspace/'].includes(url.pathname) ? '/index.html' : url.pathname; const file = resolve(appRoot, `.${requested}`);
+    const requested = url.pathname === '/' ? '/landing.html' : ['/workspace', '/workspace/'].includes(url.pathname) ? '/index.html' : ['/whitepaper', '/whitepaper/'].includes(url.pathname) ? '/whitepaper.html' : url.pathname; const file = resolve(appRoot, `.${requested}`);
     if (!(file === appRoot || file.startsWith(`${appRoot}${sep}`)) || !existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'content-type': mime[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'" });
     res.end(await readFile(file));

@@ -67,6 +67,7 @@ The project makes a deliberately narrow claim: the chain verifies that the confi
 - Repository: https://github.com/Nifemi0/Emberline
 - Live application: https://emberline.onrender.com
 - Whitepaper: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf
+- Web whitepaper: https://emberline.onrender.com/whitepaper
 - Submission brief: https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-submission-brief.pdf
 - Demo video: https://youtu.be/4Q4WkAnyvaY
 - Sepolia source registry: https://sepolia.etherscan.io/address/0x525749ab5390166fCEa076D50d5168d1db476cE7

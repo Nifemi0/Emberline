@@ -146,7 +146,7 @@ function renderProject() {
   $('#implementerName').textContent = implementer; $('.implementer-mark').textContent = initials(implementer); $('#capitalPercent').textContent = `${percent}%`; $('#capitalBar').style.width = `${percent}%`;
   $('#fundedAmount').textContent = money(p.funded_amount); $('#targetAmount').textContent = money(p.target_amount); $('#lockedAmount').textContent = money(p.funded_amount - p.released_amount); $('#releasedAmount').textContent = money(p.released_amount);
   $('#nextAmount').textContent = active ? money(active.amount) : 'Complete'; $('#nextGateCopy').textContent = active?.state === 'disputed' ? 'Frozen · submit a new revision' : active ? `${Math.max(0, active.quorum - active.approvals)} more independent approval${active.quorum - active.approvals === 1 ? '' : 's'}` : 'All milestones processed';
-  $('#impactValue').textContent = `${Number(p.confirmed_impact || 0).toLocaleString()} / ${Number(p.impact_target || 0).toLocaleString()}`; $('#impactUnit').textContent = p.impact_unit;
+  $('#impactLabel').textContent = state.actor?.demo ? 'SESSION IMPACT' : 'CONFIRMED IMPACT'; $('#impactValue').textContent = `${Number(p.confirmed_impact || 0).toLocaleString()} / ${Number(p.impact_target || 0).toLocaleString()}`; $('#impactUnit').textContent = p.impact_unit;
   $('#auditStatus').textContent = p.audit?.valid ? `APP AUDIT VERIFIED · ${p.audit.checked} EVENTS` : 'APP AUDIT NEEDS REVIEW'; $('#auditStatus').className = `audit-status ${p.audit?.valid ? 'valid' : 'invalid'}`;
   renderProjectSwitcher(); renderMilestones(); renderReviewers(); renderActivity(); renderIdentity(); renderDemoFlow();
 }

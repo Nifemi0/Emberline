@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Emberline technical whitepaper: private evidence, independent review, and verifiable milestone funding." />
+    <title>Emberline - Technical whitepaper</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/whitepaper.css" />
+  </head>
+  <body>
+    <header class="paper-header">
+      <nav class="paper-nav" aria-label="Primary navigation">
+        <a class="paper-brand" href="/" aria-label="Emberline home"><span>✦</span>emberline</a>
+        <div class="paper-links">
+          <a href="/#workflow">How it works</a>
+          <a href="/#trust">Trust model</a>
+          <a href="/workspace">Workspace</a>
+        </div>
+        <a class="paper-button paper-button-small" href="https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf" target="_blank" rel="noreferrer">Download PDF <span>↗</span></a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="paper-hero">
+        <div class="paper-shell hero-grid">
+          <div>
+            <div class="paper-eyebrow"><span>TECHNICAL WHITEPAPER</span><b>PUBLIC TESTNET MVP</b></div>
+            <h1>Funding moves when verified work moves.</h1>
+            <p class="hero-lede">Emberline helps organizations release project funding in stages, only after independent reviewers confirm that agreed work has been completed.</p>
+            <div class="hero-actions">
+              <a class="paper-button paper-button-primary" href="/workspace">Try the guided demo <span>→</span></a>
+              <a class="paper-button paper-button-outline" href="https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf" target="_blank" rel="noreferrer">Read the PDF <span>↗</span></a>
+            </div>
+            <p class="participation-note"><span>●</span> No wallet or signup required. The guided sandbox creates a fresh 60-minute session so you can complete the flow yourself.</p>
+          </div>
+          <aside class="hero-note">
+            <div class="note-mark">✦</div>
+            <strong>Private evidence.<br />Independent review.<br />Verifiable release.</strong>
+            <div class="note-meta"><span>SECTOR</span><b>RWA</b><span>NETWORK</span><b>CREDITCOIN TESTNET</b></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="paper-section paper-shell">
+        <div class="section-heading"><div><span class="paper-eyebrow muted">01 / THE PROBLEM</span><h2>Accountability should not require exposing private evidence.</h2></div><p>Projects often release money before delivery can be checked independently. Public transparency can also expose sensitive beneficiary, operational, or personal information.</p></div>
+        <div class="three-cards">
+          <article><span class="card-number">01</span><h3>Funding moves early</h3><p>Donors need a release process that follows verified progress, not just a promise or a status update.</p></article>
+          <article><span class="card-number">02</span><h3>Evidence is sensitive</h3><p>Implementers need to prove work without publishing the files, identities, or operational details behind it.</p></article>
+          <article><span class="card-number">03</span><h3>Decisions need context</h3><p>Reviewers should decide against one exact evidence revision, with a record of disputes and approvals.</p></article>
+        </div>
+      </section>
+
+      <section class="paper-section paper-section-tint">
+        <div class="paper-shell">
+          <div class="section-heading"><div><span class="paper-eyebrow muted">02 / HOW IT WORKS</span><h2>A clear path from work completed to capital released.</h2></div><p>Emberline models each project as a sequence of milestones. Each milestone has an amount, an evidence revision, a reviewer policy, and a quorum.</p></div>
+          <div class="flow-grid">
+            <div class="flow-list">
+              <div class="flow-row"><span>01</span><div><b>Define</b><p>The owner creates a project, sets milestones, and chooses the approval quorum.</p></div></div>
+              <div class="flow-row"><span>02</span><div><b>Commit</b><p>The implementer hashes a private evidence package locally. The file is not uploaded.</p></div></div>
+              <div class="flow-row"><span>03</span><div><b>Review</b><p>Independent reviewers assess the same evidence revision and approve or reject it.</p></div></div>
+              <div class="flow-row"><span>04</span><div><b>Resolve</b><p>A rejection freezes the milestone. A corrected revision preserves the earlier history.</p></div></div>
+              <div class="flow-row"><span>05</span><div><b>Release</b><p>When approvals reach quorum and sequence checks pass, the eligible tranche can release.</p></div></div>
+              <div class="flow-row"><span>06</span><div><b>Audit</b><p>Commitments, decisions, proof references, and release transactions remain inspectable.</p></div></div>
+            </div>
+            <aside class="side-stat"><span>CORE GUARANTEES</span><strong>Files stay private.</strong><strong>Reviews stay independent.</strong><strong>Policy stays enforceable.</strong><strong>History stays inspectable.</strong><small>Files are hashed locally. Decisions are bound to reviewer, project, milestone, revision, commitment, and outcome.</small></aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="paper-section paper-shell">
+        <div class="section-heading"><div><span class="paper-eyebrow muted">03 / ATTESTCOIN AND USC</span><h2>A verified bridge between review and release policy.</h2></div><p>Attestcoin connects the reviewer decision recorded on Ethereum Sepolia to a release policy enforced on Creditcoin Testnet through USC.</p></div>
+        <div class="integration-panel">
+          <div class="integration-copy"><span class="panel-label">THE INTEGRATION PATH</span><h3>One proof must match the complete project state.</h3><p>The destination verifier asks Creditcoin's BlockProver precompile to verify the source receipt and its Merkle and continuity proof. It accepts only the expected <code>ReviewRecorded</code> event from the configured immutable registry.</p><p>The project contract then checks reviewer, project, milestone, evidence revision, evidence commitment, and decision. Invalid or replayed proofs, duplicate votes, disputes, and out-of-order releases remain blocked.</p></div>
+          <div class="contract-list">
+            <div><span>Source chain</span><b>Ethereum Sepolia</b></div>
+            <div><span>Destination chain</span><b>Creditcoin Testnet / 102031</b></div>
+            <div><span>Verifier</span><code>0x525749...476cE7</code></div>
+            <div><span>Project escrow</span><code>0xB236da...BBffE</code></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="paper-section paper-section-dark">
+        <div class="paper-shell">
+          <div class="section-heading dark-heading"><div><span class="paper-eyebrow">04 / TRUST BOUNDARIES</span><h2>Clear about what is real.</h2></div><p>Emberline separates the product experience from the independently verifiable testnet sample so the demo never blurs into a claim about production funds or physical-world truth.</p></div>
+          <div class="boundary-grid">
+            <article><span>GUIDED SANDBOX</span><h3>Safe to explore</h3><p>A fresh session-scoped application journey with synthetic project details and no monetary value. No wallet or signup is required.</p><b>APPLICATION RECORDS</b></article>
+            <article><span>LIVE TESTNET SAMPLE</span><h3>Available to verify</h3><p>Real Sepolia source events, Creditcoin proof registrations, Emberline review calls, and a testnet escrow release.</p><b>BLOCKCHAIN RECORDS</b></article>
+          </div>
+          <div class="limitation-bar"><strong>Known limitations</strong><span>Testnet only</span><span>No mainnet claim</span><span>Private evidence not published</span><span>Human review still matters</span></div>
+        </div>
+      </section>
+
+      <section class="paper-section paper-shell">
+        <div class="section-heading"><div><span class="paper-eyebrow muted">05 / EVIDENCE</span><h2>Inspect the public implementation.</h2></div><p>The hosted deployment exposes health and live-attestation endpoints. The repository contains the implementation, contracts, deployment record, and reproducible verification scripts.</p></div>
+        <div class="evidence-grid">
+          <a href="https://emberline.onrender.com/health" target="_blank" rel="noreferrer"><span>LIVE HEALTH</span><strong>PostgreSQL / USC ready</strong><b>Inspect endpoint ↗</b></a>
+          <a href="https://emberline.onrender.com/api/live-attestation" target="_blank" rel="noreferrer"><span>LIVE SAMPLE</span><strong>2 approvals / testnet release</strong><b>Inspect manifest ↗</b></a>
+          <a href="https://github.com/Nifemi0/Emberline" target="_blank" rel="noreferrer"><span>OPEN SOURCE</span><strong>Code, contracts, evidence</strong><b>Open repository ↗</b></a>
+          <a href="https://youtu.be/4Q4WkAnyvaY" target="_blank" rel="noreferrer"><span>DEMO VIDEO</span><strong>Motion-design walkthrough</strong><b>Watch on YouTube ↗</b></a>
+        </div>
+      </section>
+
+      <section class="paper-cta">
+        <div class="paper-shell cta-inner"><span class="paper-eyebrow">READY TO PARTICIPATE</span><h2>Read the paper. Then run the flow yourself.</h2><p>Start as a visitor, create a guided session, submit evidence, switch roles, reach quorum, and record a release.</p><div class="hero-actions"><a class="paper-button paper-button-primary" href="/workspace">Try the guided demo <span>→</span></a><a class="paper-button paper-button-outline" href="https://github.com/Nifemi0/Emberline/blob/main/submission-assets/emberline-whitepaper.pdf" target="_blank" rel="noreferrer">Download PDF <span>↗</span></a></div></div>
+      </section>
+    </main>
+
+    <footer class="paper-footer"><div class="paper-shell"><span>EMBERLINE / TECHNICAL WHITEPAPER</span><span><a href="/">Home</a> · <a href="/workspace">Workspace</a> · <a href="https://github.com/Nifemi0/Emberline" target="_blank" rel="noreferrer">GitHub</a></span></div></footer>
+  </body>
+</html>
