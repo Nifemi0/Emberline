@@ -1,5 +1,7 @@
 const $ = (selector) => document.querySelector(selector);
 const state = { token: sessionStorage.getItem('emberline_token') || '', demoJourneyId: sessionStorage.getItem('emberline_demo_journey') || '', actor: null, projects: [], project: null, selectedMilestone: null, guideStep: 0, guideRole: localStorage.getItem('emberline_guide_role') || 'visitor' };
+const requestedDemoRole = new URLSearchParams(window.location.search).get('demo');
+const requestedDemoCode = { owner: 'EMBER-OWNER', implementer: 'EMBER-BUILDER', reviewer: 'EMBER-REVIEW-1' }[requestedDemoRole];
 const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024;
 const money = (value) => `$${Number(value || 0).toLocaleString()}`;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
@@ -126,12 +128,13 @@ function renderIdentity() {
 function renderDemoFlow() {
   const flow = $('#demoFlow'); const stage = demoStage(); flow.hidden = !stage; if (!stage) return;
   flow.classList.toggle('complete', stage.index === 4);
+  const ownTurn = stage.roleId && state.actor?.id === stage.roleId;
+  const nextRole = { 'demo-implementer': 'the Builder', 'demo-reviewer-one': 'Reviewer 1', 'demo-reviewer-two': 'Reviewer 2', 'demo-owner': 'the Capital Owner' }[stage.roleId];
   $('#demoStepLabel').textContent = stage.index === 4 ? 'LIVE APPLICATION SANDBOX · COMPLETE' : `LIVE APPLICATION SANDBOX · STEP ${stage.index + 1} OF 4`;
-  $('#demoStepTitle').textContent = stage.title; $('#demoStepCopy').textContent = stage.copy;
+  $('#demoStepTitle').textContent = stage.title; $('#demoStepCopy').textContent = !ownTurn && nextRole ? `${stage.copy} Start with ${nextRole} to continue this guided sequence.` : stage.copy;
   $('#demoSessionRef').textContent = `SESSION ${short(state.project.id, 18)}`;
   $('#demoFlowProgress').innerHTML = [0, 1, 2, 3].map((index) => `<i class="${index < stage.index ? 'done' : index === stage.index ? 'active' : ''}"></i>`).join('');
-  const ownTurn = stage.roleId && state.actor?.id === stage.roleId;
-  $('#demoNextButton').textContent = stage.index === 4 ? stage.button : ownTurn ? ({ 0: 'Generate evidence →', 1: 'Record technical approval →', 2: 'Record stakeholder approval →', 3: 'Record $6,000 release →' })[stage.index] : stage.button;
+  $('#demoNextButton').textContent = stage.index === 4 ? stage.button : ownTurn ? ({ 0: 'Generate evidence →', 1: 'Record technical approval →', 2: 'Record stakeholder approval →', 3: 'Record $6,000 release →' })[stage.index] : ({ 'demo-implementer': 'Start as Builder →', 'demo-reviewer-one': 'Continue as Reviewer 1 →', 'demo-reviewer-two': 'Continue as Reviewer 2 →', 'demo-owner': 'Continue as Capital Owner →' }[stage.roleId] || stage.button);
 }
 function renderProjectSwitcher() {
   $('#projectList').innerHTML = state.projects.map((p) => `<button class="project-item ${p.id === state.project?.id ? 'selected' : ''}" data-project="${escapeHtml(p.id)}"><span class="project-monogram">${escapeHtml(initials(p.name))}</span><span><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.category)} · ${escapeHtml(statusCopy(p.status))}</small></span></button>`).join('');
@@ -209,4 +212,4 @@ $('#guideButton').addEventListener('click', () => openGuide()); $('#onboardingCl
 $('#coachmarkEnd').addEventListener('click', endCoachTour); $('#coachmarkBack').addEventListener('click', () => moveCoach(-1)); $('#coachmarkNext').addEventListener('click', () => moveCoach(1)); window.addEventListener('resize', positionCoachmark);
 document.addEventListener('keydown', (event) => { if ($('#coachmark').classList.contains('open')) { if (event.key === 'Escape') endCoachTour(); if (event.key === 'ArrowLeft') moveCoach(-1); if (event.key === 'ArrowRight') moveCoach(1); return; } if (!$('#onboarding').classList.contains('open')) return; if (event.key === 'Escape') closeGuide(); if (event.key === 'ArrowLeft') moveGuide(-1); if (event.key === 'ArrowRight') moveGuide(1); });
 
-(async () => { try { const health = await request('/health'); const chain = health.attestcoin || {}; $('#chainStatus').textContent = chain.mode === 'unconfigured' ? 'Adapter · configure Attestcoin' : `${chain.network} · ${chain.mode}`; $('#persistenceStatus').textContent = health.persistence === 'postgresql' ? 'POSTGRESQL DATA' : 'LOCAL SQLITE DATA'; if (!health.demoCredentials) $('#demoCredentials').hidden = true; if (!health.demoExperienceEnabled) $('#publicDemo').hidden = true; await renderLiveAttestation(); await loadSession(); await loadProjects(state.actor?.demo ? state.actor.projectId : undefined); } catch (error) { showToast(error.message, true); } })();
+(async () => { try { const health = await request('/health'); const chain = health.attestcoin || {}; $('#chainStatus').textContent = chain.mode === 'unconfigured' ? 'Adapter · configure Attestcoin' : `${chain.network} · ${chain.mode}`; $('#persistenceStatus').textContent = health.persistence === 'postgresql' ? 'POSTGRESQL DATA' : 'LOCAL SQLITE DATA'; if (!health.demoCredentials) $('#demoCredentials').hidden = true; if (!health.demoExperienceEnabled) $('#publicDemo').hidden = true; await renderLiveAttestation(); await loadSession(); await loadProjects(state.actor?.demo ? state.actor.projectId : undefined); if (requestedDemoCode && health.demoExperienceEnabled && (!state.actor || state.actor.demo)) { state.token = ''; state.actor = null; state.demoJourneyId = ''; sessionStorage.removeItem('emberline_token'); sessionStorage.removeItem('emberline_demo_journey'); state.guideRole = requestedDemoRole; localStorage.setItem('emberline_guide_role', requestedDemoRole); history.replaceState(null, '', '/workspace'); await startDemo(requestedDemoCode); } } catch (error) { showToast(error.message, true); } })();

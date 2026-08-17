@@ -38,7 +38,7 @@ try {
   const health = await request('/health'); expectStatus(health, 200, 'health');
   if (health.data.attestcoin?.nativeVerifierPrecompile.toLowerCase() !== '0x0000000000000000000000000000000000000fd2' || health.data.attestcoin?.proofBuilderConfigured !== true || health.data.attestcoin?.integrationReady !== false) throw new Error('Attestcoin adapter status is incorrect');
   const landingResponse = await fetch(`${base}/`); const landingHtml = await landingResponse.text();
-  if (!landingResponse.ok || !landingHtml.includes('Capital controlled by') || !landingHtml.includes('href="/workspace"')) throw new Error('Public landing route is incorrect');
+  if (!landingResponse.ok || !landingHtml.includes('Capital controlled by') || !landingHtml.includes('href="/workspace"') || !landingHtml.includes('href="/workspace?demo=owner"') || !landingHtml.includes('Try the capital owner flow')) throw new Error('Public landing route is incorrect');
   const whitepaperResponse = await fetch(`${base}/whitepaper`); const whitepaperHtml = await whitepaperResponse.text();
   if (!whitepaperResponse.ok || !whitepaperHtml.includes('TECHNICAL WHITEPAPER') || !whitepaperHtml.includes('Try the guided demo')) throw new Error('Whitepaper route is incorrect');
   const workspaceResponse = await fetch(`${base}/workspace`); const workspaceHtml = await workspaceResponse.text();
