@@ -107,6 +107,47 @@ The health response reports `persistence` as `postgresql` or `sqlite`. It is lau
 
 Set `DEMO_EXPERIENCE_ENABLED=true` for the public hackathon sandbox or `false` for a private production deployment. Public demo codes create only short-lived sessions scoped to the resettable `DEMO-001` project; they never reveal or reuse the private `EMBERLINE_*_TOKEN` credentials.
 
+## 8. Optional Attest / KeeperHub operating reward
+
+This is a separate integration for a separate project. It is disabled by default and must not be used as the Emberline milestone-release path. Do not enable it or deploy it until the project owner has explicitly approved the Attest endpoint, agent wallet, ERC-20 token, recipient, cap, and testnet funding.
+
+Set these server-only values when the owner authorizes the integration:
+
+```text
+ATTEST_INTEGRATION_ENABLED=true
+ATTEST_API_URL=https://<attest-service>
+ATTEST_INTEGRATION_API_TOKEN=<32+ character secret>
+ATTEST_INTEGRATION_SIGNING_SECRET=<32+ character secret>
+ATTEST_INTEGRATION_KEY_ID=emberline-prod-1
+ATTEST_AGENT_ID=emberline-operating-agent
+ATTEST_AGENT_WALLET=0x...
+ATTEST_PAYMENT_CHAIN_ID=102031
+ATTEST_PAYMENT_TOKEN_ADDRESS=0x...
+ATTEST_PAYMENT_RECIPIENT_ADDRESS=0x...
+ATTEST_PAYMENT_MAX_AMOUNT=<bounded decimal amount>
+EMBERLINE_PUBLIC_BASE_URL=https://emberline.onrender.com
+```
+
+Production refuses to start when any required value is missing or invalid. The browser cannot override the chain, token, recipient, agent, or cap. The evidence endpoint re-checks the live release receipt against the project contract through `ATTESTCOIN_RPC_URL`, then returns a signed `emberline.attest.evidence.v1` body. The outbound payment request is sent once with a persistent event ID and idempotency key; timeout or ambiguous results become `unknown` and are not retried automatically.
+
+The exact outbound body is:
+
+```json
+{
+  "schemaVersion": "emberline.attest.payment-request.v1",
+  "eventId": "<persistent UUID>",
+  "occurredAt": "<ISO timestamp>",
+  "idempotencyKey": "<persistent Emberline key>",
+  "source": { "product": "Emberline", "baseUrl": "https://emberline.onrender.com", "evidenceUrl": "https://emberline.onrender.com/api/integrations/attest/v1/evidence" },
+  "agent": { "id": "emberline-operating-agent", "walletAddress": "0x..." },
+  "project": { "projectId": "0x...", "projectAddress": "0x..." },
+  "milestone": { "id": 0, "revision": 0, "evidenceCommitment": "0x...", "approvals": 2, "rejections": 0, "quorum": 2, "releaseTxHash": "0x..." },
+  "payment": { "actionType": "erc20_transfer", "chainId": 102031, "tokenAddress": "0x...", "recipientAddress": "0x...", "amount": "1", "purpose": "bounded operating reward" }
+}
+```
+
+The persisted `attest_payment_requests` table is isolated from milestone and project state. A public proof is emitted only for a confirmed record, and only after Attest marks both the receipt and postconditions verified. Verify the integration locally with `npm run test:attest-integration`; it uses mock RPC/API servers and does not call public services.
+
 ## Remaining owner-only launch inputs
 
 - Sepolia and Creditcoin deployer wallets and test funds
@@ -114,5 +155,7 @@ Set `DEMO_EXPERIENCE_ENABLED=true` for the public hackathon sandbox or `false` f
 - durable PostgreSQL database (or a public Railway project/domain and persistent volume for SQLite)
 - repository URL, demo video URL, and pitch-deck/whitepaper PDF URL
 - DoraHacks team and submission-account access
+
+The Attest API credentials, payment addresses, and explicit owner authorization remain deployment inputs; they are intentionally not committed to the repository.
 
 The hackathon deadline is September 6, 2026 at 23:59 ET. The final submission must include a working testnet Attestcoin integration and technical documentation.

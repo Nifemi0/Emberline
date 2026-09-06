@@ -37,6 +37,7 @@ The same registry and verifier address is expected: the same deployer used the s
 - Public experience mode with published role codes, random one-hour sessions, an hourly-reset sandbox, and server-enforced isolation from real projects
 - Solidity release contract with reviewer-count, proof-replay, revision, and sequence guards
 - Permissionless Attestcoin proof-verifier contract that calls the Creditcoin BlockProver and binds a proven source-registry event to reviewer, project, milestone, revision, evidence commitment, and decision
+- Optional, disabled-by-default Attest/KeeperHub operating-reward integration isolated from milestone escrow
 
 The chain adapter is intentionally explicit: `local:` references work in the local simulation, while `usc:` references are reserved for a configured Attestcoin Protocol verifier on Creditcoin. The app does not claim that a blockchain proves a physical-world event by itself.
 
@@ -56,6 +57,8 @@ Public experience mode is enabled unless `DEMO_EXPERIENCE_ENABLED=false`. The pu
 
 Attestcoin configuration is optional for local work. Current official testnet defaults are Creditcoin chain ID `102031`, RPC `https://rpc.cc3-testnet.creditcoin.network`, Ethereum Sepolia source-chain key `1`, Proof Builder `https://proof-gen-api.cc3-testnet.creditcoin.network/`, and BlockProver `0x0000000000000000000000000000000000000FD2`. Set the reviewer wallet mappings, `ATTESTCOIN_MODE=usc`, `ATTESTCOIN_SOURCE_REGISTRY`, and the deployed `ATTESTCOIN_USC_CONTRACT` to enable live proofs. Invalid, unavailable, or mismatched proofs block the review. Local attestations are enabled by default only outside production and can be controlled with `ALLOW_LOCAL_ATTESTATIONS`.
 
+The optional Attest/KeeperHub integration is a separate operating-reward path. Emberline first verifies the published live Creditcoin release, then sends a signed, idempotent request to Attest. Attest evaluates bounded agent authority and KeeperHub may execute a separate testnet ERC-20 payment. It never routes CTC milestone releases through KeeperHub and is disabled unless `ATTEST_INTEGRATION_ENABLED=true`. Production also requires an HTTPS Attest API URL, 32-character API token and signing secret, valid server-side agent/payment addresses, a positive chain ID, and a payment cap. No secret, private evidence, or wallet key is returned by the health or public proof endpoints.
+
 ## API surface
 
 ```text
@@ -70,6 +73,11 @@ POST /api/projects/:id/fund                owner
 POST /api/milestones/:id/evidence          implementer
 POST /api/milestones/:id/review            reviewer
 POST /api/milestones/:id/release           owner
+GET  /api/integrations/attest/v1/evidence public signed live evidence
+GET  /api/integrations/attest/v1/proof    public confirmed reward proof
+POST /api/integrations/attest/v1/payment-requests owner, non-demo, feature flag
+GET  /api/integrations/attest/v1/payment-requests/:id owner, local status only
+POST /api/integrations/attest/v1/payment-requests/:id/refresh owner, Attest status refresh
 ```
 
 All mutating requests require a valid `Idempotency-Key` header. Evidence commitments must be full 32-byte hexadecimal hashes. Review references must use a `local:` or `usc:` prefix.
@@ -83,4 +91,6 @@ forge test
 
 The on-chain integration boundary is `src/AttestcoinReviewVerifier.sol`. Anyone may submit an official proof. The contract calls Creditcoin's BlockProver, decodes the proven receipt with `@gluwa/usc-contracts`, requires exactly one `ReviewRecorded` event from the immutable source registry, and stores the resulting binding. There is no trusted proof-worker allowlist. `EmberlineProject` accepts the proof only when every review field matches and prevents replay.
 
-The end-to-end suite covers authorization, invalid evidence, persistent project creation and funding, immutable evidence revisions, dispute locks, sequential release ordering, quorum release, idempotency conflicts, full audit-hash verification, and tampering detection. The production guard suite verifies required credentials, hidden demo access, and disabled local attestations.
+The Attest/KeeperHub boundary is server-side and does not modify either Solidity contract. The public evidence endpoint returns only the verified published sample and is signed with `X-Emberline-Attest-Signature`. Payment requests persist their idempotency key, request hash, event ID, normalized Attest decision, and KeeperHub result in the isolated `attest_payment_requests` table. An ambiguous write is stored as `unknown`; an integration record is never marked `confirmed` without Attest-provided receipt and postcondition verification. The guided public Emberline demo remains synthetic and cannot request a real payment.
+
+The end-to-end suite covers authorization, invalid evidence, persistent project creation and funding, immutable evidence revisions, dispute locks, sequential release ordering, quorum release, idempotency conflicts, full audit-hash verification, and tampering detection. The production guard suite verifies required credentials, hidden demo access, and disabled local attestations. `npm run test:attest-integration` uses local mock RPC and Attest API servers to verify signatures, receipt binding, configuration guards, demo isolation, idempotency, status transitions, timeout handling, and public redaction. Deployment of the optional integration still requires explicit owner configuration and authorization.

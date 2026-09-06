@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { openDatabase, hashToken, appendEvent, projectView, createDemoProject, deleteDemoProject } from './services/database.mjs';
 import { attestcoinConfig, isAttestcoinReady, verifyUscReview } from './services/attestcoin.mjs';
+import { assertIntegrationConfiguration, buildPaymentPayload, buildVerifiedEvidence, integrationConfig, integrationHealth, normalizePaymentInput, PAYMENT_SCHEMA_VERSION, refreshAttestDecision, signJsonBody, submitAttestPaymentRequest } from './services/attest-integration.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(root, 'app');
@@ -14,6 +15,8 @@ let liveAttestation = null;
 try { liveAttestation = JSON.parse(await readFile(resolve(root, 'live-attestation.json'), 'utf8')); } catch { /* The live sample is optional for local development. */ }
 const port = Number(process.env.PORT || 8899);
 const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+const attestIntegrationSettings = integrationConfig();
+if (process.env.NODE_ENV === 'production' && attestIntegrationSettings.enabled) assertIntegrationConfiguration(attestIntegrationSettings, { production: true });
 const db = await openDatabase(process.env.EMBERLINE_DB_PATH || resolve(root, 'data/emberline.db'));
 const MAX_BODY = 32 * 1024;
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.pdf': 'application/pdf' };
@@ -30,7 +33,8 @@ const demoSessions = new Map();
 const demoJourneys = new Map();
 for (const { id } of await db.all("SELECT id FROM projects WHERE id LIKE 'DEMO-%'")) await deleteDemoProject(db, id);
 
-const send = (res, status, data) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(JSON.stringify(data)); };
+const send = (res, status, data, extraHeaders = {}) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extraHeaders }); res.end(JSON.stringify(data)); };
+const sendRawJson = (res, status, rawBody, extraHeaders = {}) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extraHeaders }); res.end(rawBody); };
 const fail = (res, status, error, message, extra = {}) => send(res, status, { error, message, ...extra });
 const appError = (message, status = 400, code = 'request_failed') => Object.assign(new Error(message), { status, code });
 const parseBody = async (req) => {
@@ -106,13 +110,117 @@ const attestcoin = () => { const config = attestcoinConfig(); return {
   chainInfoPrecompile: config.chainInfoPrecompile, nativeVerifierPrecompile: config.blockProverPrecompile,
   integrationReady: isAttestcoinReady(config)
 }; };
+const verifiedAttestEvidence = () => buildVerifiedEvidence({ liveAttestation, chainConfig: attestcoinConfig(), publicBaseUrl: attestIntegrationSettings.publicBaseUrl });
+const parseStoredOutcome = (value) => { try { return value ? JSON.parse(value) : null; } catch { return null; } };
+const paymentView = (row) => {
+  const outcome = parseStoredOutcome(row.attest_outcome);
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    milestoneId: row.milestone_id,
+    revision: row.revision,
+    evidenceCommitment: row.evidence_commitment,
+    amount: row.amount,
+    purpose: row.purpose,
+    status: row.status,
+    attestDecisionId: row.attest_decision_id,
+    attestOutcome: outcome?.outcome || null,
+    reasonCodes: outcome?.reasonCodes || [],
+    keeperhubExecutionId: row.keeperhub_execution_id,
+    keeperhubStatus: outcome?.executionStatus || null,
+    transactionHash: row.transaction_hash,
+    explorerUrl: row.explorer_url,
+    errorCode: row.error_code,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+};
+const safeAddressLabel = (value) => { const text = String(value || ''); return text.length > 12 ? `${text.slice(0, 6)}…${text.slice(-4)}` : text || '—'; };
+const paymentUpdate = async (id, result) => {
+  const normalized = result.normalized;
+  const outcomeJson = normalized ? JSON.stringify(normalized) : null;
+  const row = await db.get('SELECT * FROM attest_payment_requests WHERE id=?', [id]);
+  if (!row) throw appError('Payment request not found.', 404, 'not_found');
+  await db.run('UPDATE attest_payment_requests SET status=?,attest_decision_id=?,attest_outcome=?,keeperhub_execution_id=?,transaction_hash=?,explorer_url=?,error_code=?,updated_at=? WHERE id=?', [result.status, normalized?.decisionId || row.attest_decision_id || null, outcomeJson || row.attest_outcome || null, normalized?.executionId || row.keeperhub_execution_id || null, normalized?.transactionHash || row.transaction_hash || null, normalized?.explorerUrl || row.explorer_url || null, result.errorCode || null, new Date().toISOString(), id]);
+  return await db.get('SELECT * FROM attest_payment_requests WHERE id=?', [id]);
+};
+const requireLiveIntegration = () => {
+  if (!attestIntegrationSettings.enabled) throw appError('The Attest operating-reward integration is disabled.', 404, 'attest_integration_disabled');
+  assertIntegrationConfiguration(attestIntegrationSettings, { production: process.env.NODE_ENV === 'production' });
+};
+const rejectDemoIntegrationActor = (actor) => { if (actor?.demo) throw appError('The operating-reward integration is not available in public demo sessions.', 403, 'attest_integration_disabled'); };
 
 const server = http.createServer(async (req, res) => {
   try {
     if (!rateLimit(req, res)) return;
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', demoExperienceEnabled, localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain }); }
+    if (url.pathname === '/health' && req.method === 'GET') { const chain = attestcoin(); return send(res, 200, { ok: true, persistence: db.kind, audit: 'hash-chained', authorization: 'bearer-actor', demoCredentials: process.env.NODE_ENV !== 'production', demoExperienceEnabled, localAttestationsEnabled, chainMode: chain.mode, attestcoin: chain, attestIntegration: integrationHealth(attestIntegrationSettings) }); }
     if (url.pathname === '/api/live-attestation' && req.method === 'GET') return send(res, 200, { available: Boolean(liveAttestation), attestation: liveAttestation });
+    if (url.pathname === '/api/integrations/attest/v1/evidence' && req.method === 'GET') {
+      requireLiveIntegration();
+      const evidence = await verifiedAttestEvidence(); const rawBody = JSON.stringify(evidence);
+      const signature = `sha256=${signJsonBody(rawBody, attestIntegrationSettings.signingSecret)}`;
+      return sendRawJson(res, 200, rawBody, {
+        'x-emberline-attest-schema': evidence.schemaVersion,
+        'x-emberline-key-id': attestIntegrationSettings.keyId,
+        'x-emberline-signature': signature,
+        // Legacy aliases kept temporarily for existing Emberline-only clients.
+        'x-emberline-attest-key-id': attestIntegrationSettings.keyId,
+        'x-emberline-attest-signature': signature
+      });
+    }
+    if (url.pathname === '/api/integrations/attest/v1/proof' && req.method === 'GET') {
+      const row = await db.get("SELECT * FROM attest_payment_requests WHERE status='confirmed' ORDER BY updated_at DESC,id DESC LIMIT 1");
+      if (!row) return send(res, 200, { available: false });
+      const outcome = parseStoredOutcome(row.attest_outcome);
+      return send(res, 200, { available: true, schemaVersion: PAYMENT_SCHEMA_VERSION, evidenceUrl: `${attestIntegrationSettings.publicBaseUrl}/api/integrations/attest/v1/evidence`, evidenceCommitment: row.evidence_commitment, milestone: { id: row.milestone_id, revision: row.revision }, integration: { status: 'confirmed', authorizationOutcome: outcome?.outcome || 'allowed', reasonCodes: outcome?.reasonCodes || [], keeperhubExecutionId: row.keeperhub_execution_id, amount: row.amount, transactionHash: row.transaction_hash, explorerUrl: row.explorer_url, separateFromCreditcoinRelease: true } });
+    }
+    if (url.pathname === '/api/integrations/attest/v1/config' && req.method === 'GET') {
+      requireLiveIntegration();
+      const actor = await requireRole(req, res, ['owner']); if (!actor) return; rejectDemoIntegrationActor(actor);
+      const chain = attestcoinConfig();
+      return send(res, 200, { network: chain.network || 'Creditcoin Testnet', chainId: Number(attestIntegrationSettings.paymentChainId), tokenAddress: safeAddressLabel(attestIntegrationSettings.paymentTokenAddress), recipientAddress: safeAddressLabel(attestIntegrationSettings.paymentRecipientAddress), maxAmount: attestIntegrationSettings.paymentMaxAmount, purpose: attestIntegrationSettings.paymentPurpose, separateFromRelease: true });
+    }
+    if (url.pathname === '/api/integrations/attest/v1/payment-requests' && req.method === 'POST') {
+      requireLiveIntegration();
+      const actor = await requireRole(req, res, ['owner']); if (!actor) return; rejectDemoIntegrationActor(actor);
+      const body = await parseBody(req); const input = normalizePaymentInput(body, attestIntegrationSettings);
+      const idempotencyKey = req.headers['idempotency-key'];
+      if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 100) throw appError('A valid Idempotency-Key header is required.', 400, 'idempotency_key_required');
+      const staticEvidence = { subject: { projectId: String(liveAttestation?.projectId || '').toLowerCase(), projectAddress: liveAttestation?.projectAddress || '' }, milestone: { id: Number(liveAttestation?.milestoneId), revision: Number(liveAttestation?.revision), evidenceCommitment: String(liveAttestation?.evidenceCommitment || '').toLowerCase() } };
+      const requestHash = createHash('sha256').update(JSON.stringify({ input, staticEvidence, chainId: attestIntegrationSettings.paymentChainId, tokenAddress: attestIntegrationSettings.paymentTokenAddress, recipientAddress: attestIntegrationSettings.paymentRecipientAddress, agentId: attestIntegrationSettings.agentId, agentWallet: attestIntegrationSettings.agentWallet })).digest('hex');
+      const existing = await db.get('SELECT * FROM attest_payment_requests WHERE idempotency_key=?', [idempotencyKey]);
+      if (existing) { if (existing.request_hash !== requestHash) throw appError('This idempotency key was already used for a different payment request.', 409, 'attest_request_conflict'); return send(res, 200, paymentView(existing)); }
+      const evidence = await verifiedAttestEvidence();
+      if (!evidence.verification.verified || evidence.milestone.approvals < evidence.milestone.quorum || evidence.milestone.rejections !== 0) throw appError('The live Emberline evidence does not satisfy the operating-reward policy.', 409, 'attest_evidence_not_verified');
+      const payload = buildPaymentPayload({ input, evidence, config: attestIntegrationSettings, idempotencyKey }); const id = randomUUID(); const timestamp = new Date().toISOString();
+      try {
+        await db.run('INSERT INTO attest_payment_requests (id,project_id,milestone_id,revision,evidence_commitment,requested_by_actor_id,idempotency_key,request_hash,amount,purpose,status,attest_decision_id,attest_outcome,keeperhub_execution_id,transaction_hash,explorer_url,error_code,payload_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [id, evidence.subject.projectId, evidence.milestone.id, evidence.milestone.revision, evidence.milestone.evidenceCommitment, actor.id, idempotencyKey, requestHash, input.amount, input.purpose, 'created', null, null, null, null, null, null, JSON.stringify(payload), timestamp, timestamp]);
+      } catch (cause) {
+        if (!String(cause.message || '').match(/UNIQUE|duplicate/i)) throw cause;
+        const raced = await db.get('SELECT * FROM attest_payment_requests WHERE idempotency_key=?', [idempotencyKey]);
+        if (!raced) throw cause;
+        if (raced.request_hash !== requestHash) throw appError('This idempotency key was already used for a different payment request.', 409, 'attest_request_conflict');
+        return send(res, 200, paymentView(raced));
+      }
+      await db.run('UPDATE attest_payment_requests SET status=?,updated_at=? WHERE id=?', ['submitted', new Date().toISOString(), id]);
+      const result = await submitAttestPaymentRequest({ payload, config: attestIntegrationSettings });
+      const saved = await paymentUpdate(id, result);
+      return send(res, 201, paymentView(saved));
+    }
+    const paymentStatusRoute = url.pathname.match(/^\/api\/integrations\/attest\/v1\/payment-requests\/([^/]+)$/);
+    if (paymentStatusRoute && req.method === 'GET') {
+      const actor = await requireRole(req, res, ['owner']); if (!actor) return; rejectDemoIntegrationActor(actor);
+      const row = await db.get('SELECT * FROM attest_payment_requests WHERE id=?', [paymentStatusRoute[1]]); return row ? send(res, 200, paymentView(row)) : fail(res, 404, 'not_found', 'Payment request not found.');
+    }
+    const paymentRefreshRoute = url.pathname.match(/^\/api\/integrations\/attest\/v1\/payment-requests\/([^/]+)\/refresh$/);
+    if (paymentRefreshRoute && req.method === 'POST') {
+      requireLiveIntegration();
+      const actor = await requireRole(req, res, ['owner']); if (!actor) return; rejectDemoIntegrationActor(actor);
+      const row = await db.get('SELECT * FROM attest_payment_requests WHERE id=?', [paymentRefreshRoute[1]]); if (!row) return fail(res, 404, 'not_found', 'Payment request not found.');
+      if (!row.attest_decision_id) return send(res, 200, paymentView(row));
+      const result = await refreshAttestDecision({ decisionId: row.attest_decision_id, config: attestIntegrationSettings }); const saved = await paymentUpdate(row.id, result); return send(res, 200, paymentView(saved));
+    }
     if (url.pathname === '/api/demo/access' && req.method === 'GET') return send(res, 200, { enabled: demoExperienceEnabled, expiresInMinutes: DEMO_SESSION_MS / 60000, isolatedPerVisitor: true, roles: demoExperienceEnabled ? [...demoCodes.entries()].map(([code, actor]) => ({ code, name: actor.name, role: actor.role })) : [] });
     if (url.pathname === '/api/demo/session' && req.method === 'POST') {
       if (!demoExperienceEnabled) return fail(res, 404, 'demo_disabled', 'Public demo access is disabled.');

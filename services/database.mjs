@@ -88,6 +88,7 @@ const sqliteSchema = `
   CREATE TABLE IF NOT EXISTS idempotency (actor_id TEXT NOT NULL,request_key TEXT NOT NULL,response_json TEXT NOT NULL,signature TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,PRIMARY KEY(actor_id,request_key));
   CREATE TABLE IF NOT EXISTS evidence_revisions (id INTEGER PRIMARY KEY AUTOINCREMENT,milestone_id INTEGER NOT NULL REFERENCES milestones(id),revision INTEGER NOT NULL,commitment TEXT NOT NULL,label TEXT NOT NULL,submitted_by TEXT NOT NULL REFERENCES actors(id),created_at TEXT NOT NULL,UNIQUE(milestone_id,revision));
   CREATE TABLE IF NOT EXISTS milestone_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,milestone_id INTEGER NOT NULL REFERENCES milestones(id),revision INTEGER NOT NULL,actor_id TEXT NOT NULL REFERENCES actors(id),decision TEXT NOT NULL CHECK(decision IN ('approved','rejected')),attestation_ref TEXT NOT NULL,source_tx_hash TEXT,created_at TEXT NOT NULL,UNIQUE(milestone_id,revision,actor_id));
+  CREATE TABLE IF NOT EXISTS attest_payment_requests (id TEXT PRIMARY KEY,project_id TEXT NOT NULL,milestone_id INTEGER NOT NULL,revision INTEGER NOT NULL,evidence_commitment TEXT NOT NULL,requested_by_actor_id TEXT NOT NULL,idempotency_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,amount TEXT NOT NULL,purpose TEXT NOT NULL,status TEXT NOT NULL,attest_decision_id TEXT,attest_outcome TEXT,keeperhub_execution_id TEXT,transaction_hash TEXT,explorer_url TEXT,error_code TEXT,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 `;
 
 const postgresSchema = `
@@ -102,6 +103,7 @@ const postgresSchema = `
   CREATE TABLE IF NOT EXISTS milestone_reviews (id SERIAL PRIMARY KEY,milestone_id INTEGER NOT NULL REFERENCES milestones(id),revision INTEGER NOT NULL,actor_id TEXT NOT NULL REFERENCES actors(id),decision TEXT NOT NULL CHECK(decision IN ('approved','rejected')),attestation_ref TEXT NOT NULL,source_tx_hash TEXT,created_at TEXT NOT NULL,UNIQUE(milestone_id,revision,actor_id));
   ALTER TABLE milestones ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE idempotency ADD COLUMN IF NOT EXISTS signature TEXT NOT NULL DEFAULT '';
+  CREATE TABLE IF NOT EXISTS attest_payment_requests (id TEXT PRIMARY KEY,project_id TEXT NOT NULL,milestone_id INTEGER NOT NULL,revision INTEGER NOT NULL,evidence_commitment TEXT NOT NULL,requested_by_actor_id TEXT NOT NULL,idempotency_key TEXT NOT NULL UNIQUE,request_hash TEXT NOT NULL,amount TEXT NOT NULL,purpose TEXT NOT NULL,status TEXT NOT NULL,attest_decision_id TEXT,attest_outcome TEXT,keeperhub_execution_id TEXT,transaction_hash TEXT,explorer_url TEXT,error_code TEXT,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 `;
 
 export async function initialize(store) {

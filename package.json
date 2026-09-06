@@ -3,15 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
+    "dev": "node --env-file-if-exists=.env server.mjs",
     "test:contracts": "forge test",
     "test:e2e": "node scripts/verify-e2e.mjs",
     "test:demo": "node scripts/verify-demo-experience.mjs",
     "test:postgres": "node scripts/verify-postgres-adapter.mjs",
     "test:guards": "node scripts/verify-production-guards.mjs",
     "test:attestcoin": "node scripts/verify-attestcoin-adapter.mjs",
-    "check": "node --check server.mjs && node --check services/database.mjs && node --check services/attestcoin.mjs && node --check app/app.js",
-    "test": "npm run check && npm run test:postgres && npm run test:e2e && npm run test:demo && npm run test:guards && npm run test:attestcoin"
+    "test:attest-integration": "node scripts/verify-attest-integration.mjs",
+    "check": "node --check server.mjs && node --check services/database.mjs && node --check services/attestcoin.mjs && node --check services/attest-integration.mjs && node --check app/app.js",
+    "test": "npm run check && npm run test:postgres && npm run test:e2e && npm run test:demo && npm run test:guards && npm run test:attestcoin && npm run test:attest-integration"
   },
   "dependencies": {
     "@gluwa/usc-contracts": "^0.1.2",
