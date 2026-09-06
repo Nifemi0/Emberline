@@ -5,30 +5,31 @@
   "projectId": "0x4ef2ce7025b91eb08aa02e50567a6450b755103065f7a11325d9a5fb34f1252e",
   "projectAddress": "0xB236da47fe9215E18C729050fEd3f4B77FcBBffE",
   "verifierAddress": "0x525749ab5390166fCEa076D50d5168d1db476cE7",
-  "evidenceCommitment": "0x3fa25b91dd82002634e6fac583dd144aa55c338fc6fd40f3b5c42d3bf179e667",
-  "milestoneId": 0,
+  "evidenceCommitment": "0x54e649264936c2a6cd31a70864101a0f68ea10c127410aae400a2df8453b997f",
+  "milestoneId": 1,
   "revision": 0,
   "approvals": 2,
   "rejections": 0,
-  "releasedAmount": "0.01 CTC",
+  "quorum": 2,
+  "releasedAmount": "0.02 CTC",
   "reviewers": [
     {
       "role": "technical",
       "address": "0x3fA66617eC9ce26dADf786E5bC64262055271D68",
-      "sourceTxHash": "0x7032cb915f1cf6813fbb79eccda4bdaa81b29cef0a91641499178d7a3011ae39",
-      "proofId": "0x792b365ae1f9b80a3d75a3b55d103d8034393b35691a3e3fb918e7f8ab4f9d65",
-      "proofRegistrationTxHash": "0xe6d2d9fa35fcbf2423fa1003cd651a467277bda219388c40b160efdea2af866a",
-      "emberlineReviewTxHash": "0xad539c260835ba055d58b0bba1638af9f4f9885d9d067bf56b5b6c80edf81d63"
+      "sourceTxHash": "0x90ceaef1db6b134a0913eac53f9e088b004d93db860fb0fca2338b25f83d8ebe",
+      "proofId": "0x0a6aaf2b3b0367ef153a41e07482aaf170a2d33c468f11a1fa46921fb2e2350d",
+      "proofRegistrationTxHash": "0xb4ddc8963bda40c511558e6d6a78625c0738e6b2fa0fb5eb85190c764940b472",
+      "emberlineReviewTxHash": "0x1d12a9c35ff94839ca588dce607c64b080de560b3c5e1531b32aeff1b61a6ac9"
     },
     {
       "role": "stakeholder",
       "address": "0xC50c45990FD8D235d4B151E755ee1ADF079f2540",
-      "sourceTxHash": "0xc15abc8c1898df577d827cf3422af2587cafcf9cf849bcba46f22f7ca9fa439e",
-      "proofId": "0x66d28f60eff24e01c4bfacb70723f43881fdcdc6c228fdcc3b411ef8dfe6ee70",
-      "proofRegistrationTxHash": "0x49032963b5ddfb6ae27d0af1d04e05ff1926db5b9e80e99b6a40cc083f80e3a6",
-      "emberlineReviewTxHash": "0x76b887489410eb5df35de18dec18637365c6940e325e80332ffe0c85d309074d"
+      "sourceTxHash": "0xe704018ff20a215afdf45454b3e9179d1c9059f0c60d1a85ce8669d98ee28c46",
+      "proofId": "0x6d254d9ab08220baa22a7166d58ffa22bc5859c506da6d7a72284f6d048451b7",
+      "proofRegistrationTxHash": "0x015bd701228e3c56c4534c7e449294f6b1935a395b000d59a8f8bbfd63a9b503",
+      "emberlineReviewTxHash": "0x8aa34552012b22afa6fe51f7a3a29aaecc862a7100077c8758b41eab8c63886d"
     }
   ],
-  "fundingTxHash": "0x6e1b6891e02fd0001e53e6b149ce02bca2e3fc030cce3bcf321963bd61e009ae",
-  "releaseTxHash": "0x0a5121a6b63211ce6ee81a2cc2cf28494a512a39b6057b2a4e0deb302f6616dd"
+  "fundingTxHash": "0xc2ee1a2b206834f32126461c6ff40ed7d733fd8135b2b2bd19af77ccc237bc47",
+  "releaseTxHash": "0xb28b2411ebe5a289771b60c2d09404e539612ac57c295d3a93120b1bdfc2070f"
 }
