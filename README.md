@@ -1,5 +1,11 @@
 # Emberline
 
+<!-- nuvixes-project-credit -->
+Built by [Nifemi](https://github.com/Nifemi0), founder of [Nuvixes](https://nuvixes.studio/).
+[Read the Emberline build story at Nuvixes](https://nuvixes.studio/projects/emberline-attest) for the design decisions, development milestones, and current project status.
+<!-- /nuvixes-project-credit -->
+
+
 **Capital moves when verified work moves.**
 
 Emberline is a general milestone-funding and accountability workspace. It can be used for public works, grants, contractors, research, community initiatives, or humanitarian programs. It is not locked to an NGO narrative.
